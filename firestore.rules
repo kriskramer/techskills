@@ -1,0 +1,16 @@
+rules_version = '2';
+
+// MVP/SCAFFOLD ONLY — no auth, open rules. Revisit before production:
+// candidates and tests (including the test's answerKey) are readable and
+// writable by anyone who knows the document ID.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /candidates/{candidateId} {
+      allow read, write: if true;
+    }
+
+    match /tests/{token} {
+      allow read, write: if true;
+    }
+  }
+}

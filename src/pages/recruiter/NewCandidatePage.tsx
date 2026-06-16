@@ -1,0 +1,105 @@
+import { useState } from 'react'
+import type { FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Card } from '../../components/shared/Card'
+import { isFirebaseConfigured } from '../../lib/firebase'
+import { createCandidate } from '../../services/candidates'
+import { analyzeResume } from '../../services/functions'
+
+export function NewCandidatePage() {
+  const navigate = useNavigate()
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [resumeText, setResumeText] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError(null)
+    setIsSubmitting(true)
+
+    try {
+      const candidateId = await createCandidate({ name, email, resumeText })
+      await analyzeResume(candidateId)
+      navigate(`/recruiter/candidates/${candidateId}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong analyzing this resume.')
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-semibold text-white">New recruit</h1>
+        <p className="mt-1 text-sm text-slate-400">
+          Add a candidate's details and resume. We'll generate a skills overview before you create a test invite.
+        </p>
+      </div>
+
+      {!isFirebaseConfigured && (
+        <p className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+          Firebase isn't configured yet — copy .env.example to .env.local and add your project's values before
+          submitting.
+        </p>
+      )}
+
+      <Card>
+        <form className="space-y-5" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <label htmlFor="name" className="text-sm font-medium text-slate-200">
+              Name
+            </label>
+            <input
+              id="name"
+              required
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="email" className="text-sm font-medium text-slate-200">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="resume" className="text-sm font-medium text-slate-200">
+              Resume text
+            </label>
+            <textarea
+              id="resume"
+              required
+              rows={12}
+              value={resumeText}
+              onChange={(event) => setResumeText(event.target.value)}
+              placeholder="Paste the candidate's resume here…"
+              className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none focus:border-cyan-300"
+            />
+          </div>
+
+          {error && <p className="text-sm text-rose-300">{error}</p>}
+
+          <button
+            type="submit"
+            disabled={isSubmitting || !isFirebaseConfigured}
+            className="rounded-full border border-cyan-300 bg-cyan-300 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSubmitting ? 'Generating skills overview…' : 'Generate skills overview'}
+          </button>
+        </form>
+      </Card>
+    </div>
+  )
+}

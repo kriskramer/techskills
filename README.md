@@ -1,4 +1,4 @@
-# TechSkills
+# Praxis
 
 A Vite-powered React 18 + TypeScript starter for a Firebase-backed hiring workflow.
 
