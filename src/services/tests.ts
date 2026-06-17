@@ -1,7 +1,8 @@
 import { doc, getDoc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from '../lib/firebase'
-import type { TestDoc, TestScore } from '../types/test'
+import { scoreTest } from './functions'
+import type { TestDoc } from '../types/test'
 
 const COLLECTION = 'tests'
 
@@ -38,36 +39,13 @@ export async function startTest(token: string): Promise<void> {
   })
 }
 
-export async function submitTest(token: string, answers: Record<string, string>): Promise<TestScore> {
+export async function saveAnswer(token: string, questionId: string, answer: string): Promise<void> {
   const firestore = requireDb()
-  const test = await getTest(token)
-  if (!test) {
-    throw new Error(`Test ${token} not found`)
-  }
-
-  const byCategory: Record<string, { correct: number; total: number }> = {}
-  let correct = 0
-
-  for (const question of test.questions) {
-    const categoryTotals = byCategory[question.category] ?? { correct: 0, total: 0 }
-    categoryTotals.total += 1
-    const submitted = (answers[question.id] ?? '').trim().toLowerCase()
-    const expected = (test.answerKey[question.id] ?? '').trim().toLowerCase()
-    if (submitted === expected) {
-      categoryTotals.correct += 1
-      correct += 1
-    }
-    byCategory[question.category] = categoryTotals
-  }
-
-  const score: TestScore = { correct, total: test.questions.length, byCategory }
-
   await updateDoc(doc(firestore, COLLECTION, token), {
-    status: 'completed',
-    completedAt: serverTimestamp(),
-    answers,
-    score,
+    [`answers.${questionId}`]: answer,
   })
+}
 
-  return score
+export async function submitTest(token: string): Promise<void> {
+  await scoreTest(token)
 }

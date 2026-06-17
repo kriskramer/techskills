@@ -1,5 +1,12 @@
 import type { Skill, SkillsProfile } from '../../types/candidate'
+import type { QuestionCategory } from '../../types/question'
 import { Card } from '../shared/Card'
+
+const CATEGORY_LABEL: Record<QuestionCategory, string> = {
+  CSharp: 'C# Language',
+  DotNet: '.NET / ASP.NET Core',
+  SQL: 'SQL & Databases',
+}
 
 const LEVEL_COLOR: Record<Skill['level'], string> = {
   beginner: 'bg-slate-700 text-slate-200',
@@ -29,7 +36,9 @@ export function SkillsProfileCard({ profile }: SkillsProfileCardProps) {
       <div className="space-y-4">
         {[...byCategory.entries()].map(([category, skills]) => (
           <div key={category}>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{category}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+              {CATEGORY_LABEL[category as QuestionCategory] ?? category}
+            </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {skills.map((skill) => (
                 <span

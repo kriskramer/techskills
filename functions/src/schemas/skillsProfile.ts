@@ -5,7 +5,7 @@ export const SkillsProfileSchema = z.object({
   skills: z.array(
     z.object({
       name: z.string(),
-      category: z.enum(['Frontend', 'Backend', 'DevOps']),
+      category: z.enum(['CSharp', 'DotNet', 'SQL']),
       level: z.enum(['beginner', 'intermediate', 'advanced', 'expert']),
       evidence: z.string(),
     }),

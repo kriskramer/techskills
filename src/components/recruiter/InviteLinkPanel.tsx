@@ -1,14 +1,18 @@
 import { useState } from 'react'
+import { sendInvitation } from '../../services/functions'
 import { Card } from '../shared/Card'
 
 interface InviteLinkPanelProps {
   url: string
+  candidateId: string
   candidateName: string
   candidateEmail: string
 }
 
-export function InviteLinkPanel({ url, candidateName, candidateEmail }: InviteLinkPanelProps) {
+export function InviteLinkPanel({ url, candidateId, candidateName, candidateEmail }: InviteLinkPanelProps) {
   const [copied, setCopied] = useState(false)
+  const [sendState, setSendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [sendError, setSendError] = useState<string | null>(null)
 
   const subject = encodeURIComponent('Your Praxis assessment invite')
   const body = encodeURIComponent(
@@ -20,6 +24,18 @@ export function InviteLinkPanel({ url, candidateName, candidateEmail }: InviteLi
     await navigator.clipboard.writeText(url)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function handleSendEmail() {
+    setSendState('sending')
+    setSendError(null)
+    try {
+      await sendInvitation(candidateId, url)
+      setSendState('sent')
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Failed to send email.')
+      setSendState('error')
+    }
   }
 
   return (
@@ -36,6 +52,14 @@ export function InviteLinkPanel({ url, candidateName, candidateEmail }: InviteLi
         >
           {copied ? 'Copied!' : 'Copy link'}
         </button>
+        <button
+          type="button"
+          onClick={handleSendEmail}
+          disabled={sendState === 'sending' || sendState === 'sent'}
+          className="rounded-full border border-cyan-300 bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {sendState === 'sending' ? 'Sending…' : sendState === 'sent' ? 'Email sent!' : 'Send email to candidate'}
+        </button>
         <a
           href={mailto}
           className="rounded-full border border-white/15 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-cyan-300/60"
@@ -43,6 +67,8 @@ export function InviteLinkPanel({ url, candidateName, candidateEmail }: InviteLi
           Open email draft
         </a>
       </div>
+      {sendState === 'error' && sendError && <p className="text-sm text-rose-300">{sendError}</p>}
     </Card>
   )
 }
+

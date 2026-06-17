@@ -1,4 +1,4 @@
-export type QuestionCategory = 'Frontend' | 'Backend' | 'DevOps'
+export type QuestionCategory = 'CSharp' | 'DotNet' | 'SQL'
 
 export type QuestionDifficulty = 'easy' | 'medium' | 'hard'
 

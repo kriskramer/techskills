@@ -4,7 +4,7 @@ import { QuestionCard } from '../../components/candidate/QuestionCard'
 import { TestTimer } from '../../components/candidate/TestTimer'
 import { Spinner } from '../../components/shared/Spinner'
 import { isFirebaseConfigured } from '../../lib/firebase'
-import { getTest, submitTest } from '../../services/tests'
+import { getTest, saveAnswer, submitTest } from '../../services/tests'
 import type { TestDoc } from '../../types/test'
 
 export function TestRunnerPage() {
@@ -29,39 +29,43 @@ export function TestRunnerPage() {
         return
       }
       setTest(result)
+
+      // Resume from saved answers
+      const savedAnswers = result.answers ?? {}
+      setAnswers(savedAnswers)
+      const firstUnanswered = result.questions.findIndex((q) => !savedAnswers[q.id])
+      setCurrentIndex(firstUnanswered >= 0 ? firstUnanswered : 0)
     })
     return () => {
       active = false
     }
   }, [token, navigate])
 
-  const handleSubmit = useCallback(
-    async (finalAnswers: Record<string, string>) => {
-      if (!token) return
-      setIsSubmitting(true)
-      await submitTest(token, finalAnswers)
-      navigate(`/test/${token}/results`)
-    },
-    [token, navigate],
-  )
-
   const handleAdvance = useCallback(
-    (questionId: string, answer: string) => {
-      setAnswers((prev) => {
-        const next = { ...prev, [questionId]: answer }
+    async (questionId: string, answer: string) => {
+      if (!token || !test || isSubmitting) return
 
-        if (!test) return next
+      try {
+        await saveAnswer(token, questionId, answer)
+      } catch {
+        // Continue even if the individual save fails
+      }
 
-        if (currentIndex + 1 >= test.questions.length) {
-          void handleSubmit(next)
-        } else {
-          setCurrentIndex((index) => index + 1)
+      setAnswers((prev) => ({ ...prev, [questionId]: answer }))
+
+      if (currentIndex + 1 >= test.questions.length) {
+        setIsSubmitting(true)
+        try {
+          await submitTest(token)
+          navigate(`/test/${token}/results`)
+        } catch {
+          setIsSubmitting(false)
         }
-
-        return next
-      })
+      } else {
+        setCurrentIndex((i) => i + 1)
+      }
     },
-    [currentIndex, test, handleSubmit],
+    [token, test, currentIndex, isSubmitting, navigate],
   )
 
   if (!isFirebaseConfigured) {
@@ -87,7 +91,7 @@ export function TestRunnerPage() {
         <TestTimer
           key={question.id}
           seconds={question.timeLimitSeconds}
-          onExpire={() => handleAdvance(question.id, currentAnswer)}
+          onExpire={() => void handleAdvance(question.id, currentAnswer)}
         />
       </div>
 
@@ -102,13 +106,14 @@ export function TestRunnerPage() {
       <div className="flex justify-end">
         <button
           type="button"
-          onClick={() => handleAdvance(question.id, currentAnswer)}
+          onClick={() => void handleAdvance(question.id, currentAnswer)}
           disabled={isSubmitting}
           className="rounded-full border border-cyan-300 bg-cyan-300 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isLastQuestion ? 'Submit' : 'Next'}
+          {isLastQuestion ? (isSubmitting ? 'Submitting…' : 'Submit') : 'Next'}
         </button>
       </div>
     </div>
   )
 }
+

@@ -22,17 +22,25 @@ export interface TestScore extends ScoreBreakdown {
   byCategory: Record<string, ScoreBreakdown>
 }
 
+export interface QuestionResult {
+  questionId: string
+  prompt: string
+  candidateAnswer: string
+  correctAnswer: string
+  isCorrect: boolean
+}
+
 export interface TestDoc {
   id: string
   candidateId: string
   candidateName: string
   questions: TestQuestion[]
-  answerKey: Record<string, string>
   durationMinutes: number
   status: TestStatus
   startedAt: Timestamp | null
   completedAt: Timestamp | null
   answers: Record<string, string>
   score: TestScore | null
+  questionBreakdown: QuestionResult[] | null
   createdAt: Timestamp | null
 }

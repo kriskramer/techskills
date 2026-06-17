@@ -5,8 +5,8 @@ import { QUESTION_BANK, TIME_LIMIT_BY_DIFFICULTY } from './data/questionBank'
 import type { QuestionBankEntry } from './data/questionBank'
 import type { QuestionCategory } from './types'
 
-const QUESTIONS_PER_TEST = 10
-const CATEGORIES: QuestionCategory[] = ['Frontend', 'Backend', 'DevOps']
+const QUESTIONS_PER_TEST = 50
+const CATEGORIES: QuestionCategory[] = ['CSharp', 'DotNet', 'SQL']
 
 interface GenerateTestProfileRequest {
   candidateId: string
@@ -38,7 +38,7 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(async (req
     throw new HttpsError('failed-precondition', 'Candidate has not been analyzed yet.')
   }
 
-  const categoryCounts: Record<QuestionCategory, number> = { Frontend: 0, Backend: 0, DevOps: 0 }
+  const categoryCounts: Record<QuestionCategory, number> = { CSharp: 0, DotNet: 0, SQL: 0 }
   for (const skill of skills) {
     if (skill.category in categoryCounts) {
       categoryCounts[skill.category] += 1
@@ -71,7 +71,6 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(async (req
     candidateId,
     candidateName: (candidate.name as string | undefined) ?? '',
     questions: testQuestions,
-    answerKey,
     durationMinutes,
     status: 'pending',
     startedAt: null,
@@ -80,6 +79,8 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(async (req
     score: null,
     createdAt: FieldValue.serverTimestamp(),
   })
+
+  await testRef.collection('private').doc('answerKey').set({ key: answerKey })
 
   await candidateRef.update({
     testId: token,
@@ -96,7 +97,7 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(async (req
 function pickQuestions(categoryCounts: Record<QuestionCategory, number>): QuestionBankEntry[] {
   const totalSkills = CATEGORIES.reduce((sum, category) => sum + categoryCounts[category], 0)
 
-  const allocations: Record<QuestionCategory, number> = { Frontend: 0, Backend: 0, DevOps: 0 }
+  const allocations: Record<QuestionCategory, number> = { CSharp: 0, DotNet: 0, SQL: 0 }
   for (const category of CATEGORIES) {
     allocations[category] =
       totalSkills === 0

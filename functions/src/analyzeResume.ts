@@ -41,12 +41,14 @@ export const analyzeResume = onCall<AnalyzeResumeRequest>(
       messages: [
         {
           role: 'user',
-          content: `You are analyzing a candidate's resume to build a skills profile for a technical hiring assessment.
+          content: `You are analyzing a candidate's resume to build a skills profile for a C#/.NET/SQL technical hiring assessment.
 
-Write a 2-3 sentence summary of the candidate's overall background, then list each distinct technical skill you can identify (languages, frameworks, libraries, tools, or platforms). For each skill:
-- Classify it into exactly one category: "Frontend", "Backend", or "DevOps".
+Write a 2-3 sentence summary of the candidate's overall background, then list each distinct C#, .NET, or SQL-related skill you can identify. For each skill:
+- Classify it into exactly one category: "CSharp" (C# language features, OOP, LINQ, async/await, generics, etc.), "DotNet" (ASP.NET Core, Entity Framework, Web API, DI, middleware, NuGet, .NET CLI, etc.), or "SQL" (SQL Server, T-SQL, queries, joins, stored procedures, indexes, transactions, etc.).
 - Estimate the candidate's proficiency level as "beginner", "intermediate", "advanced", or "expert" based on the evidence in the resume.
 - Provide a short quote or summary of the resume text that supports this assessment.
+
+Only include skills relevant to C#, .NET, and SQL — omit unrelated technologies unless they are deeply integrated with the .NET ecosystem.
 
 Resume:
 ${resumeText}`,

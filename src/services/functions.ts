@@ -31,3 +31,25 @@ export async function generateTestProfile(candidateId: string): Promise<string> 
   const result = await callable({ candidateId })
   return result.data.token
 }
+
+interface SendInvitationResponse {
+  success: boolean
+}
+
+export async function sendInvitation(candidateId: string, inviteUrl: string): Promise<void> {
+  const callable = httpsCallable<{ candidateId: string; inviteUrl: string }, SendInvitationResponse>(
+    requireFunctions(),
+    'sendInvitation',
+  )
+  await callable({ candidateId, inviteUrl })
+}
+
+interface ScoreTestResponse {
+  score: object
+}
+
+export async function scoreTest(testId: string): Promise<void> {
+  const callable = httpsCallable<{ testId: string }, ScoreTestResponse>(requireFunctions(), 'scoreTest')
+  await callable({ testId })
+}
+
