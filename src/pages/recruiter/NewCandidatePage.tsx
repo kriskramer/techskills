@@ -8,6 +8,11 @@ import { analyzeResume } from '../../services/functions'
 
 export function NewCandidatePage() {
   const navigate = useNavigate()
+  const [recruiterName, setRecruiterName] = useState('')
+  const [recruiterEmail, setRecruiterEmail] = useState('')
+  const [recruiterCompany, setRecruiterCompany] = useState('')
+  const [differentHiringCompany, setDifferentHiringCompany] = useState(false)
+  const [hiringCompany, setHiringCompany] = useState('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [resumeText, setResumeText] = useState('')
@@ -20,7 +25,15 @@ export function NewCandidatePage() {
     setIsSubmitting(true)
 
     try {
-      const candidateId = await createCandidate({ name, email, resumeText })
+      const candidateId = await createCandidate({
+        name,
+        email,
+        resumeText,
+        recruiterName,
+        recruiterEmail,
+        recruiterCompany,
+        hiringCompany: differentHiringCompany ? hiringCompany : recruiterCompany,
+      })
       await analyzeResume(candidateId)
       navigate(`/recruiter/candidates/${candidateId}`)
     } catch (err) {
@@ -47,49 +60,125 @@ export function NewCandidatePage() {
 
       <Card>
         <form className="space-y-5" onSubmit={handleSubmit}>
-          <div className="space-y-2">
-            <label htmlFor="name" className="text-sm font-medium text-slate-200">
-              Name
+          <div className="space-y-4">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Your info</h2>
+
+            <div className="space-y-2">
+              <label htmlFor="recruiter-name" className="text-sm font-medium text-slate-200">
+                Your name
+              </label>
+              <input
+                id="recruiter-name"
+                required
+                value={recruiterName}
+                onChange={(event) => setRecruiterName(event.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="recruiter-email" className="text-sm font-medium text-slate-200">
+                Your email
+              </label>
+              <input
+                id="recruiter-email"
+                type="email"
+                required
+                value={recruiterEmail}
+                onChange={(event) => setRecruiterEmail(event.target.value)}
+                placeholder="Results notifications will go here"
+                className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300 placeholder:text-slate-600"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="recruiter-company" className="text-sm font-medium text-slate-200">
+                Your company
+              </label>
+              <input
+                id="recruiter-company"
+                required
+                value={recruiterCompany}
+                onChange={(event) => setRecruiterCompany(event.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
+              />
+            </div>
+
+            <label className="flex cursor-pointer items-center gap-2.5">
+              <input
+                type="checkbox"
+                checked={differentHiringCompany}
+                onChange={(event) => setDifferentHiringCompany(event.target.checked)}
+                className="h-4 w-4 rounded border-white/20 bg-slate-950/60 accent-cyan-300"
+              />
+              <span className="text-sm text-slate-300">Hiring company is different from my company</span>
             </label>
-            <input
-              id="name"
-              required
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
-            />
+
+            {differentHiringCompany && (
+              <div className="space-y-2">
+                <label htmlFor="hiring-company" className="text-sm font-medium text-slate-200">
+                  Hiring company
+                </label>
+                <input
+                  id="hiring-company"
+                  required
+                  value={hiringCompany}
+                  onChange={(event) => setHiringCompany(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
+                />
+              </div>
+            )}
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium text-slate-200">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
-            />
-          </div>
+          <div className="border-t border-white/10 pt-5">
+            <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-400">Candidate info</h2>
 
-          <div className="space-y-2">
-            <label htmlFor="resume" className="text-sm font-medium text-slate-200">
-              Resume text
-            </label>
-            <textarea
-              id="resume"
-              required
-              rows={12}
-              value={resumeText}
-              onChange={(event) => setResumeText(event.target.value)}
-              placeholder="Paste the candidate's resume here…"
-              className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none focus:border-cyan-300"
-            />
-          </div>
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <label htmlFor="name" className="text-sm font-medium text-slate-200">
+                  Name
+                </label>
+                <input
+                  id="name"
+                  required
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
+                />
+              </div>
 
-          {error && <p className="text-sm text-rose-300">{error}</p>}
+              <div className="space-y-2">
+                <label htmlFor="email" className="text-sm font-medium text-slate-200">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="resume" className="text-sm font-medium text-slate-200">
+                  Resume text
+                </label>
+                <textarea
+                  id="resume"
+                  required
+                  rows={12}
+                  value={resumeText}
+                  onChange={(event) => setResumeText(event.target.value)}
+                  placeholder="Paste the candidate's resume here…"
+                  className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none focus:border-cyan-300"
+                />
+              </div>
+
+              {error && <p className="text-sm text-rose-300">{error}</p>}
+            </div>
+          </div>
 
           <button
             type="submit"

@@ -103,11 +103,36 @@ function pickQuestions(categoryCounts: Record<QuestionCategory, number>): Questi
   const totalSkills = CATEGORIES.reduce((sum, category) => sum + categoryCounts[category], 0)
 
   const allocations: Record<QuestionCategory, number> = { CSharp: 0, DotNet: 0, SQL: 0 }
-  for (const category of CATEGORIES) {
-    allocations[category] =
-      totalSkills === 0
-        ? Math.floor(QUESTIONS_PER_TEST / CATEGORIES.length)
-        : Math.round((categoryCounts[category] / totalSkills) * QUESTIONS_PER_TEST)
+
+  if (totalSkills === 0) {
+    // Even split as much as possible to reach exactly 50
+    allocations.CSharp = 17
+    allocations.DotNet = 17
+    allocations.SQL = 16
+  } else {
+    // Proportional split with largest remainder method to ensure we get exactly 50 questions
+    let allocatedSum = 0
+    const remainders: { category: QuestionCategory; remainder: number }[] = []
+
+    for (const category of CATEGORIES) {
+      const exact = (categoryCounts[category] / totalSkills) * QUESTIONS_PER_TEST
+      const floorVal = Math.floor(exact)
+      allocations[category] = floorVal
+      allocatedSum += floorVal
+      remainders.push({ category, remainder: exact - floorVal })
+    }
+
+    // Sort by remainder descending
+    remainders.sort((a, b) => b.remainder - a.remainder)
+
+    // Distribute remainders
+    let index = 0
+    while (allocatedSum < QUESTIONS_PER_TEST) {
+      const cat = remainders[index % remainders.length].category
+      allocations[cat] += 1
+      allocatedSum += 1
+      index++
+    }
   }
 
   const selected: QuestionBankEntry[] = []
@@ -117,13 +142,15 @@ function pickQuestions(categoryCounts: Record<QuestionCategory, number>): Questi
     selected.push(...shuffle(pool).slice(0, count))
   }
 
+  // Fallback in case a category pool is smaller than allocated
   if (selected.length < QUESTIONS_PER_TEST) {
     const usedIds = new Set(selected.map((question) => question.id))
     const remaining = shuffle(QUESTION_BANK.filter((question) => !usedIds.has(question.id)))
     selected.push(...remaining.slice(0, QUESTIONS_PER_TEST - selected.length))
   }
 
-  return selected
+  // Shuffle the final list of questions so they are interleaved, not grouped by category
+  return shuffle(selected)
 }
 
 function shuffle<T>(items: T[]): T[] {

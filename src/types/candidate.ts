@@ -24,6 +24,10 @@ export interface Candidate {
   name: string
   email: string
   resumeText: string
+  recruiterName: string
+  recruiterEmail: string
+  recruiterCompany: string
+  hiringCompany: string
   status: CandidateStatus
   skillsProfile: SkillsProfile | null
   testId: string | null
@@ -31,4 +35,4 @@ export interface Candidate {
   updatedAt: Timestamp | null
 }
 
-export type NewCandidateInput = Pick<Candidate, 'name' | 'email' | 'resumeText'>
+export type NewCandidateInput = Pick<Candidate, 'name' | 'email' | 'resumeText' | 'recruiterName' | 'recruiterEmail' | 'recruiterCompany' | 'hiringCompany'>
