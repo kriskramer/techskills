@@ -47,6 +47,8 @@ Write a 2-3 sentence summary of the candidate's overall background, then list ea
 - Classify it into exactly one category: "CSharp" (C# language features, OOP, LINQ, async/await, generics, etc.), "DotNet" (ASP.NET Core, Entity Framework, Web API, DI, middleware, NuGet, .NET CLI, etc.), or "SQL" (SQL Server, T-SQL, queries, joins, stored procedures, indexes, transactions, etc.).
 - Estimate the candidate's proficiency level as "beginner", "intermediate", "advanced", or "expert" based on the evidence in the resume.
 - Provide a short quote or summary of the resume text that supports this assessment.
+- Assign a frequencyScore from 1 to 5 indicating how prominently this skill appears across the resume: 1 = mentioned once in passing, 3 = appears in multiple roles or projects, 5 = a central, recurring theme throughout the resume.
+- Assign a recencyScore from 1 to 5 indicating how recently this skill was used: 5 = current role or within the last year, 4 = within the last 2-3 years, 3 = within the last 5 years, 2 = more than 5 years ago, 1 = more than 10 years ago or the resume gives no date context.
 
 Only include skills relevant to C#, .NET, and SQL — omit unrelated technologies unless they are deeply integrated with the .NET ecosystem.
 

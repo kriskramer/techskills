@@ -10,6 +10,8 @@ export interface Skill {
   category: QuestionCategory
   level: SkillLevel
   evidence: string
+  frequencyScore: number
+  recencyScore: number
 }
 
 export interface SkillsProfile {

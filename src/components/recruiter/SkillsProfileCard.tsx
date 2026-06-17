@@ -43,10 +43,13 @@ export function SkillsProfileCard({ profile }: SkillsProfileCardProps) {
               {skills.map((skill) => (
                 <span
                   key={skill.name}
-                  title={skill.evidence}
+                  title={`${skill.evidence} | Frequency: ${skill.frequencyScore}/5 · Recency: ${skill.recencyScore}/5`}
                   className={`rounded-full px-3 py-1 text-xs font-medium ${LEVEL_COLOR[skill.level]}`}
                 >
                   {skill.name} · {skill.level}
+                  <span className="ml-1.5 opacity-60">
+                    f{skill.frequencyScore} r{skill.recencyScore}
+                  </span>
                 </span>
               ))}
             </div>

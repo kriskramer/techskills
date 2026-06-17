@@ -1,7 +1,7 @@
 import type { Timestamp } from 'firebase/firestore'
 import type { QuestionCategory, QuestionDifficulty, QuestionType } from './question'
 
-export type TestStatus = 'pending' | 'in-progress' | 'completed'
+export type TestStatus = 'pending' | 'in-progress' | 'completed' | 'expired'
 
 export interface TestQuestion {
   id: string
@@ -11,6 +11,7 @@ export interface TestQuestion {
   options: string[] | null
   difficulty: QuestionDifficulty
   timeLimitSeconds: number
+  skills: string[]
 }
 
 export interface ScoreBreakdown {
@@ -20,6 +21,7 @@ export interface ScoreBreakdown {
 
 export interface TestScore extends ScoreBreakdown {
   byCategory: Record<string, ScoreBreakdown>
+  bySkill: Record<string, ScoreBreakdown>
 }
 
 export interface QuestionResult {
@@ -39,6 +41,7 @@ export interface TestDoc {
   status: TestStatus
   startedAt: Timestamp | null
   completedAt: Timestamp | null
+  expiresAt: Timestamp | null
   answers: Record<string, string>
   score: TestScore | null
   questionBreakdown: QuestionResult[] | null

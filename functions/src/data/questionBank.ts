@@ -2,7 +2,7 @@ import type { QuestionCategory, QuestionDifficulty, QuestionType } from '../type
 
 // Maps difficulty to the per-question countdown shown to the candidate.
 export const TIME_LIMIT_BY_DIFFICULTY: Record<QuestionDifficulty, number> = {
-  easy: 15,
+  easy: 20,
   medium: 20,
   hard: 30,
 }
@@ -15,6 +15,7 @@ export interface QuestionBankEntry {
   options: string[] | null
   difficulty: QuestionDifficulty
   correctAnswer: string
+  skills: string[]
 }
 
 export const QUESTION_BANK: QuestionBankEntry[] = [
@@ -28,6 +29,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['void', 'null', 'empty', 'none'],
     difficulty: 'easy',
     correctAnswer: 'void',
+    skills: ['C# Fundamentals'],
   },
   {
     id: 'cs-null-coalescing-op',
@@ -37,6 +39,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['Null-coalescing operator', 'Elvis operator', 'Ternary operator', 'Safe navigation operator'],
     difficulty: 'easy',
     correctAnswer: 'Null-coalescing operator',
+    skills: ['C# Fundamentals', 'Null Handling'],
   },
   {
     id: 'cs-string-reference-type',
@@ -46,6 +49,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['Reference type', 'Value type', 'Pointer type', 'Unmanaged type'],
     difficulty: 'easy',
     correctAnswer: 'Reference type',
+    skills: ['C# Fundamentals', 'Memory Management'],
   },
   {
     id: 'cs-sealed-keyword',
@@ -55,6 +59,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['sealed', 'final', 'private', 'static'],
     difficulty: 'easy',
     correctAnswer: 'sealed',
+    skills: ['OOP', 'C# Fundamentals'],
   },
   {
     id: 'cs-base-keyword',
@@ -64,6 +69,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['base', 'super', 'parent', 'this'],
     difficulty: 'easy',
     correctAnswer: 'base',
+    skills: ['OOP', 'Inheritance'],
   },
   {
     id: 'cs-property-definition',
@@ -73,6 +79,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['Property', 'Field', 'Delegate', 'Indexer'],
     difficulty: 'easy',
     correctAnswer: 'Property',
+    skills: ['OOP', 'C# Fundamentals'],
   },
   {
     id: 'cs-interface-multiple',
@@ -87,6 +94,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     ],
     difficulty: 'medium',
     correctAnswer: 'Yes, a class can implement multiple interfaces',
+    skills: ['OOP', 'Interfaces'],
   },
   {
     id: 'cs-async-return-type',
@@ -96,6 +104,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['Task<string>', 'string', 'async<string>', 'Promise<string>'],
     difficulty: 'medium',
     correctAnswer: 'Task<string>',
+    skills: ['async/await', 'Tasks'],
   },
   {
     id: 'cs-linq-where',
@@ -105,6 +114,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['Where', 'Select', 'Filter', 'Find'],
     difficulty: 'medium',
     correctAnswer: 'Where',
+    skills: ['LINQ'],
   },
   {
     id: 'cs-nullable-int',
@@ -114,6 +124,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['int?', 'int | null', 'nullable int', 'Nullable'],
     difficulty: 'medium',
     correctAnswer: 'int?',
+    skills: ['C# Fundamentals', 'Null Handling'],
   },
   {
     id: 'cs-override-keyword',
@@ -123,6 +134,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['override', 'new', 'virtual', 'abstract'],
     difficulty: 'medium',
     correctAnswer: 'override',
+    skills: ['OOP', 'Inheritance', 'Polymorphism'],
   },
   {
     id: 'cs-string-interpolation',
@@ -132,6 +144,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['$', '@', '#', '&'],
     difficulty: 'medium',
     correctAnswer: '$',
+    skills: ['C# Fundamentals'],
   },
   {
     id: 'cs-finally-block',
@@ -141,6 +154,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['finally', 'catch', 'else', 'end'],
     difficulty: 'medium',
     correctAnswer: 'finally',
+    skills: ['Exception Handling'],
   },
   {
     id: 'cs-generic-list-namespace',
@@ -150,6 +164,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['System.Collections.Generic', 'System.Collections', 'System.Generics', 'System.Linq'],
     difficulty: 'medium',
     correctAnswer: 'System.Collections.Generic',
+    skills: ['Generics', 'Collections'],
   },
   {
     id: 'cs-ref-out-difference',
@@ -164,6 +179,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     ],
     difficulty: 'hard',
     correctAnswer: 'ref requires the variable to be initialized before the call; out does not',
+    skills: ['C# Fundamentals', 'Memory Management'],
   },
   {
     id: 'cs-struct-value-type',
@@ -178,6 +194,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     ],
     difficulty: 'hard',
     correctAnswer: 'Structs are stored on the stack (or inline in containing types), not the heap',
+    skills: ['Memory Management', 'C# Fundamentals'],
   },
   {
     id: 'cs-covariance-out',
@@ -187,6 +204,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['out', 'in', 'ref', 'where'],
     difficulty: 'hard',
     correctAnswer: 'out',
+    skills: ['Generics', 'OOP'],
   },
   {
     id: 'cs-event-keyword',
@@ -196,6 +214,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['event', 'sealed', 'private', 'readonly'],
     difficulty: 'hard',
     correctAnswer: 'event',
+    skills: ['Events and Delegates'],
   },
 
   // ─── .NET / ASP.NET Core (17 questions) ──────────────────────────────────
@@ -208,6 +227,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['AddScoped', 'AddSingleton', 'AddTransient', 'AddInstance'],
     difficulty: 'easy',
     correctAnswer: 'AddScoped',
+    skills: ['Dependency Injection', 'ASP.NET Core'],
   },
   {
     id: 'dn-httpget-attribute',
@@ -217,6 +237,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['[HttpGet]', '[Get]', '[RouteGet]', '[ApiGet]'],
     difficulty: 'easy',
     correctAnswer: '[HttpGet]',
+    skills: ['Web API', 'ASP.NET Core'],
   },
   {
     id: 'dn-allowanonymous',
@@ -226,6 +247,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['[AllowAnonymous]', '[Public]', '[NoAuth]', '[Unauthenticated]'],
     difficulty: 'easy',
     correctAnswer: '[AllowAnonymous]',
+    skills: ['ASP.NET Core', 'Authorization'],
   },
   {
     id: 'dn-appsettings-file',
@@ -235,6 +257,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['appsettings.json', 'config.json', 'settings.json', 'app.config'],
     difficulty: 'easy',
     correctAnswer: 'appsettings.json',
+    skills: ['ASP.NET Core', 'Configuration'],
   },
   {
     id: 'dn-program-cs',
@@ -244,6 +267,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['Program.cs', 'Startup.cs', 'App.cs', 'Main.cs'],
     difficulty: 'easy',
     correctAnswer: 'Program.cs',
+    skills: ['ASP.NET Core', '.NET CLI'],
   },
   {
     id: 'dn-apicontroller-attribute',
@@ -253,6 +277,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['[ApiController]', '[Controller]', '[Route]', '[ApiRoute]'],
     difficulty: 'easy',
     correctAnswer: '[ApiController]',
+    skills: ['Web API', 'ASP.NET Core'],
   },
   {
     id: 'dn-imiddleware-interface',
@@ -262,6 +287,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['IMiddleware', 'IRequestHandler', 'IFilter', 'IPipeline'],
     difficulty: 'medium',
     correctAnswer: 'IMiddleware',
+    skills: ['Middleware', 'ASP.NET Core'],
   },
   {
     id: 'dn-ef-dbcontext',
@@ -271,6 +297,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['DbContext', 'DataContext', 'EntityContext', 'ModelContext'],
     difficulty: 'medium',
     correctAnswer: 'DbContext',
+    skills: ['Entity Framework', 'ORM'],
   },
   {
     id: 'dn-ef-dbset',
@@ -280,6 +307,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['DbSet<T>', 'DbTable<T>', 'EntitySet<T>', 'Repository<T>'],
     difficulty: 'medium',
     correctAnswer: 'DbSet<T>',
+    skills: ['Entity Framework', 'ORM'],
   },
   {
     id: 'dn-route-attribute',
@@ -289,6 +317,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['[Route]', '[Url]', '[Path]', '[Endpoint]'],
     difficulty: 'medium',
     correctAnswer: '[Route]',
+    skills: ['Web API', 'ASP.NET Core'],
   },
   {
     id: 'dn-ilogger',
@@ -298,6 +327,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['ILogger<T>', 'ILog', 'LogWriter', 'IConsoleLogger'],
     difficulty: 'medium',
     correctAnswer: 'ILogger<T>',
+    skills: ['Logging', 'ASP.NET Core'],
   },
   {
     id: 'dn-frombody-attribute',
@@ -307,6 +337,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['[FromBody]', '[FromForm]', '[FromQuery]', '[FromHeader]'],
     difficulty: 'medium',
     correctAnswer: '[FromBody]',
+    skills: ['Web API', 'ASP.NET Core'],
   },
   {
     id: 'dn-add-package-command',
@@ -316,6 +347,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['dotnet add package', 'nuget install', 'dotnet install', 'npm install'],
     difficulty: 'medium',
     correctAnswer: 'dotnet add package',
+    skills: ['NuGet', '.NET CLI'],
   },
   {
     id: 'dn-ef-migrations-add',
@@ -325,6 +357,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['dotnet ef migrations add', 'dotnet ef update-database', 'dotnet ef scaffold', 'dotnet ef model create'],
     difficulty: 'hard',
     correctAnswer: 'dotnet ef migrations add',
+    skills: ['Entity Framework', 'Migrations'],
   },
   {
     id: 'dn-singleton-lifetime',
@@ -339,6 +372,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     ],
     difficulty: 'hard',
     correctAnswer: 'Once, shared for the entire application lifetime',
+    skills: ['Dependency Injection', 'ASP.NET Core'],
   },
   {
     id: 'dn-iactionresult',
@@ -348,6 +382,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['IActionResult', 'ActionResult', 'HttpResponse', 'Task<object>'],
     difficulty: 'hard',
     correctAnswer: 'IActionResult',
+    skills: ['Web API', 'ASP.NET Core'],
   },
   {
     id: 'dn-use-vs-run',
@@ -362,6 +397,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     ],
     difficulty: 'hard',
     correctAnswer: 'Use passes control to the next middleware; Run is terminal and does not call next',
+    skills: ['Middleware', 'ASP.NET Core'],
   },
 
   // ─── SQL (15 questions) ───────────────────────────────────────────────────
@@ -374,6 +410,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['FROM', 'SELECT', 'WHERE', 'TABLE'],
     difficulty: 'easy',
     correctAnswer: 'FROM',
+    skills: ['SQL Queries', 'T-SQL'],
   },
   {
     id: 'sql-where-filter',
@@ -383,6 +420,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['WHERE', 'HAVING', 'FILTER', 'LIMIT'],
     difficulty: 'easy',
     correctAnswer: 'WHERE',
+    skills: ['SQL Queries', 'T-SQL'],
   },
   {
     id: 'sql-primary-key',
@@ -392,6 +430,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['PRIMARY KEY', 'UNIQUE', 'NOT NULL', 'INDEX'],
     difficulty: 'easy',
     correctAnswer: 'PRIMARY KEY',
+    skills: ['Database Design', 'SQL Server'],
   },
   {
     id: 'sql-count-function',
@@ -401,6 +440,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['COUNT', 'SUM', 'TOTAL', 'ROWS'],
     difficulty: 'easy',
     correctAnswer: 'COUNT',
+    skills: ['SQL Queries', 'Aggregate Functions'],
   },
   {
     id: 'sql-order-by',
@@ -410,6 +450,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['ORDER BY', 'SORT BY', 'GROUP BY', 'ARRANGE BY'],
     difficulty: 'easy',
     correctAnswer: 'ORDER BY',
+    skills: ['SQL Queries', 'T-SQL'],
   },
   {
     id: 'sql-inner-join',
@@ -419,6 +460,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL OUTER JOIN'],
     difficulty: 'medium',
     correctAnswer: 'INNER JOIN',
+    skills: ['Joins', 'SQL Queries'],
   },
   {
     id: 'sql-left-join',
@@ -428,6 +470,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['LEFT JOIN', 'INNER JOIN', 'CROSS JOIN', 'RIGHT JOIN'],
     difficulty: 'medium',
     correctAnswer: 'LEFT JOIN',
+    skills: ['Joins', 'SQL Queries'],
   },
   {
     id: 'sql-group-by',
@@ -437,6 +480,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['GROUP BY', 'ORDER BY', 'PARTITION BY', 'CLUSTER BY'],
     difficulty: 'medium',
     correctAnswer: 'GROUP BY',
+    skills: ['SQL Queries', 'Aggregate Functions'],
   },
   {
     id: 'sql-having',
@@ -446,6 +490,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['HAVING', 'WHERE', 'FILTER', 'AND'],
     difficulty: 'medium',
     correctAnswer: 'HAVING',
+    skills: ['SQL Queries', 'Aggregate Functions'],
   },
   {
     id: 'sql-foreign-key',
@@ -455,6 +500,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['FOREIGN KEY', 'INDEX', 'REFERENCE', 'LINK KEY'],
     difficulty: 'medium',
     correctAnswer: 'FOREIGN KEY',
+    skills: ['Database Design', 'SQL Server'],
   },
   {
     id: 'sql-is-null',
@@ -464,6 +510,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['IS NULL', '= NULL', '== NULL', 'EQUALS NULL'],
     difficulty: 'medium',
     correctAnswer: 'IS NULL',
+    skills: ['SQL Queries', 'T-SQL'],
   },
   {
     id: 'sql-index-purpose',
@@ -478,6 +525,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     ],
     difficulty: 'medium',
     correctAnswer: 'Speed up data retrieval by allowing the database to locate rows without scanning the entire table',
+    skills: ['Indexes', 'Performance Tuning', 'SQL Server'],
   },
   {
     id: 'sql-transaction-isolation',
@@ -487,6 +535,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['READ COMMITTED', 'READ UNCOMMITTED', 'REPEATABLE READ', 'SERIALIZABLE'],
     difficulty: 'hard',
     correctAnswer: 'READ COMMITTED',
+    skills: ['Transactions', 'SQL Server'],
   },
   {
     id: 'sql-exists-keyword',
@@ -496,6 +545,7 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     options: ['EXISTS', 'IN', 'ANY', 'ALL'],
     difficulty: 'hard',
     correctAnswer: 'EXISTS',
+    skills: ['SQL Queries', 'T-SQL', 'Performance Tuning'],
   },
   {
     id: 'sql-stored-procedure',
@@ -510,5 +560,6 @@ export const QUESTION_BANK: QuestionBankEntry[] = [
     ],
     difficulty: 'hard',
     correctAnswer: 'A named, saved SQL script stored in the database that can be called with parameters',
+    skills: ['Stored Procedures', 'T-SQL'],
   },
 ]

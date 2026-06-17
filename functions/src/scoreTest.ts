@@ -18,6 +18,7 @@ interface TestQuestion {
   id: string
   category: string
   prompt: string
+  skills?: string[]
 }
 
 export const scoreTest = onCall<ScoreTestRequest>(
@@ -54,6 +55,7 @@ export const scoreTest = onCall<ScoreTestRequest>(
     const questions = (testData.questions ?? []) as TestQuestion[]
 
     const byCategory: Record<string, ScoreBreakdown> = {}
+    const bySkill: Record<string, ScoreBreakdown> = {}
     let correct = 0
 
     const questionBreakdown = questions.map((question) => {
@@ -69,10 +71,17 @@ export const scoreTest = onCall<ScoreTestRequest>(
       }
       byCategory[question.category] = cat
 
+      for (const skill of question.skills ?? []) {
+        const sk = bySkill[skill] ?? { correct: 0, total: 0 }
+        sk.total += 1
+        if (isCorrect) sk.correct += 1
+        bySkill[skill] = sk
+      }
+
       return { questionId: question.id, prompt: question.prompt, candidateAnswer, correctAnswer, isCorrect }
     })
 
-    const score = { correct, total: questions.length, byCategory }
+    const score = { correct, total: questions.length, byCategory, bySkill }
 
     await testRef.update({
       status: 'completed',
@@ -81,7 +90,7 @@ export const scoreTest = onCall<ScoreTestRequest>(
       questionBreakdown,
     })
 
-    await sendRecruiterNotification(resendApiKey.value(), testData.candidateName as string, score)
+    await sendRecruiterNotification(resendApiKey.value(), testData.candidateId as string, testData.candidateName as string, score)
 
     return { score }
   },
@@ -89,14 +98,20 @@ export const scoreTest = onCall<ScoreTestRequest>(
 
 async function sendRecruiterNotification(
   apiKey: string,
+  candidateId: string,
   candidateName: string,
-  score: { correct: number; total: number; byCategory: Record<string, ScoreBreakdown> },
+  score: { correct: number; total: number; byCategory: Record<string, ScoreBreakdown>; bySkill: Record<string, ScoreBreakdown> },
 ): Promise<void> {
   const recruiterEmail = process.env.RECRUITER_EMAIL
-  if (!recruiterEmail) return
+  if (!recruiterEmail) {
+    console.warn('RECRUITER_EMAIL is not set — skipping recruiter notification. Set it in functions/.env.local or as a Firebase environment variable.')
+    return
+  }
 
   const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
+  const appUrl = process.env.APP_URL
   const pct = score.total > 0 ? Math.round((score.correct / score.total) * 100) : 0
+
   const categoryLines = Object.entries(score.byCategory)
     .map(([cat, b]) => {
       const catPct = b.total > 0 ? Math.round((b.correct / b.total) * 100) : 0
@@ -104,19 +119,39 @@ async function sendRecruiterNotification(
     })
     .join('\n')
 
+  const skillLines = Object.entries(score.bySkill)
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([skill, b]) => {
+      const skillPct = b.total > 0 ? Math.round((b.correct / b.total) * 100) : 0
+      return `  ${skill}: ${b.correct}/${b.total} (${skillPct}%)`
+    })
+    .join('\n')
+
+  const candidateLink = appUrl ? `${appUrl}/recruiter/candidates/${candidateId}` : null
+
+  const lines = [
+    `${candidateName} has completed their skills assessment.`,
+    '',
+    `Overall score: ${score.correct}/${score.total} (${pct}%)`,
+    '',
+    'By category:',
+    categoryLines,
+  ]
+
+  if (skillLines) {
+    lines.push('', 'By skill:', skillLines)
+  }
+
+  if (candidateLink) {
+    lines.push('', `View candidate: ${candidateLink}`)
+  }
+
   const resend = new Resend(apiKey)
   await resend.emails.send({
     from: fromEmail,
     to: recruiterEmail,
     subject: `Assessment complete: ${candidateName}`,
-    text: [
-      `${candidateName} has completed their skills assessment.`,
-      '',
-      `Overall score: ${score.correct}/${score.total} (${pct}%)`,
-      '',
-      'By category:',
-      categoryLines,
-    ].join('\n'),
+    text: lines.join('\n'),
   })
 }
 

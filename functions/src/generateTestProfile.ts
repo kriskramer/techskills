@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { QUESTION_BANK, TIME_LIMIT_BY_DIFFICULTY } from './data/questionBank'
 import type { QuestionBankEntry } from './data/questionBank'
@@ -16,8 +16,10 @@ interface SkillsProfileSkill {
   category: QuestionCategory
 }
 
-export const generateTestProfile = onCall<GenerateTestProfileRequest>(async (request) => {
-  const { candidateId } = request.data
+export const generateTestProfile = onCall<GenerateTestProfileRequest>(
+  { invoker: 'public' },
+  async (request) => {
+    const { candidateId } = request.data
 
   if (!candidateId || typeof candidateId !== 'string') {
     throw new HttpsError('invalid-argument', 'candidateId is required.')
@@ -54,9 +56,10 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(async (req
       category: question.category,
       prompt: question.prompt,
       type: question.type,
-      options: question.options,
+      options: question.options ? shuffle(question.options) : null,
       difficulty: question.difficulty,
       timeLimitSeconds: TIME_LIMIT_BY_DIFFICULTY[question.difficulty],
+      skills: question.skills,
     }
   })
 
@@ -66,6 +69,7 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(async (req
 
   const token = randomUUID()
   const testRef = db.collection('tests').doc(token)
+  const expiresAt = Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
 
   await testRef.set({
     candidateId,
@@ -75,6 +79,7 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(async (req
     status: 'pending',
     startedAt: null,
     completedAt: null,
+    expiresAt,
     answers: {},
     score: null,
     createdAt: FieldValue.serverTimestamp(),

@@ -76,6 +76,17 @@ export function TestResultsPage() {
             />
           ))}
         </div>
+
+        {test.score.bySkill && Object.keys(test.score.bySkill).length > 0 && (
+          <div className="space-y-3 pt-2">
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">By skill</p>
+            {Object.entries(test.score.bySkill)
+              .sort((a, b) => b[1].total - a[1].total)
+              .map(([skill, breakdown]) => (
+                <CategoryBar key={skill} label={skill} correct={breakdown.correct} total={breakdown.total} />
+              ))}
+          </div>
+        )}
         <p className="pt-2 text-sm text-slate-400">A recruiter will follow up with next steps.</p>
       </Card>
 

@@ -32,6 +32,12 @@ export function TestLandingPage() {
     }
   }, [token, navigate])
 
+  const isExpired =
+    test != null &&
+    test.status !== 'completed' &&
+    test.expiresAt != null &&
+    test.expiresAt.toDate() < new Date()
+
   async function handleStart() {
     if (!token) return
     setIsStarting(true)
@@ -53,6 +59,17 @@ export function TestLandingPage() {
 
   if (test === null) {
     return <p className="text-sm text-slate-300">We couldn't find an assessment for this link.</p>
+  }
+
+  if (isExpired) {
+    return (
+      <Card className="space-y-3">
+        <h1 className="text-xl font-semibold text-white">This assessment link has expired</h1>
+        <p className="text-sm text-slate-300">
+          Assessment links are valid for 7 days. Please contact the recruiter if you believe this is a mistake.
+        </p>
+      </Card>
+    )
   }
 
   return (

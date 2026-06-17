@@ -140,6 +140,30 @@ export function CandidateDetailPage() {
             })}
           </div>
 
+          {test.score.bySkill && Object.keys(test.score.bySkill).length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-400">By skill</h3>
+              {Object.entries(test.score.bySkill)
+                .sort((a, b) => b[1].total - a[1].total)
+                .map(([skill, breakdown]) => {
+                  const pct = breakdown.total > 0 ? Math.round((breakdown.correct / breakdown.total) * 100) : 0
+                  return (
+                    <div key={skill} className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span className="font-medium text-slate-200">{skill}</span>
+                        <span className="text-slate-400">
+                          {breakdown.correct}/{breakdown.total} · {pct}%
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                        <div className="h-2 rounded-full bg-violet-400 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+          )}
+
           {test.questionBreakdown && test.questionBreakdown.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Per-question breakdown</h3>
