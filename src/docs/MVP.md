@@ -81,11 +81,11 @@ Use **Resend** (resend.com) — free tier is 100 emails/day, single API key, min
 - Show loading state + "Email sent!" confirmation
 - Keep the existing "Copy link" and mailto: fallback
 
-**`functions/.env.example`** (and `functions/.env` locally)
+**`functions/.env.example`** (and `functions/.env.local` locally)
 - Document `RESEND_API_KEY=` alongside `ANTHROPIC_API_KEY=`
 
 ### Verify Phase 2
-1. Set `RESEND_API_KEY` in `functions/.env`
+1. Set `RESEND_API_KEY` in `functions/.env.local`
 2. Restart emulators
 3. On candidate detail page, click "Send email to candidate"
 4. Verify email arrives at the candidate address with correct test URL
@@ -173,4 +173,4 @@ Use **Resend** (resend.com) — free tier is 100 emails/day, single API key, min
 ## Setup prerequisites (before Phase 2)
 - Sign up at resend.com, get an API key, verify a sending domain
 - `firebase functions:secrets:set RESEND_API_KEY` for deployed environments
-- Add `RESEND_API_KEY=` to `functions/.env` for local emulator use
+- Add `RESEND_API_KEY=` to `functions/.env.local` for local emulator use

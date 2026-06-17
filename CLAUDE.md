@@ -35,7 +35,7 @@ There is no test runner configured yet (no Vitest/Playwright/Jest), despite bein
 ### Environment setup
 
 - **Frontend**: copy `.env.example` to `.env.local` and fill in Firebase web config (`VITE_FIREBASE_*` vars). `src/lib/firebase.ts` checks `isFirebaseConfigured` and only initializes `auth`/`db`/`functions`/`storage` when configured — the app runs without `.env.local`, but Firebase-backed features are `undefined`. Any new code touching these must handle the unconfigured case.
-- **Cloud Functions**: copy `functions/.env.example` to `functions/.env` and set `ANTHROPIC_API_KEY` for local emulator use. In deployed environments set it as a secret instead — `firebase functions:secrets:set ANTHROPIC_API_KEY` (the function declares it via `defineSecret` from `firebase-functions/params`; it is never a client-exposed `VITE_*` var).
+- **Cloud Functions**: copy `functions/.env.example` to `functions/.env.local` and set `ANTHROPIC_API_KEY` for local emulator use. In deployed environments set it as a secret instead — `firebase functions:secrets:set ANTHROPIC_API_KEY` (the function declares it via `defineSecret` from `firebase-functions/params`; it is never a client-exposed `VITE_*` var).
 
 ## Architecture
 
