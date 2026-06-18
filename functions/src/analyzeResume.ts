@@ -3,7 +3,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
-import { SkillsProfileSchema } from './schemas/skillsProfile'
+import { normalizeSkillsProfile, SkillsProfileOutputSchema } from './schemas/skillsProfile'
 import { buildAssessmentScopeSummary, buildCategoryPromptLines } from './data/assessmentCategories'
 import { enrichSkillsProfile } from './resumeSkillDetection'
 
@@ -62,16 +62,16 @@ ${resumeText}`,
         },
       ],
       output_config: {
-        format: zodOutputFormat(SkillsProfileSchema),
+        format: zodOutputFormat(SkillsProfileOutputSchema),
       },
     })
 
-    const skillsProfile = response.parsed_output
-    if (!skillsProfile) {
+    const parsedProfile = response.parsed_output
+    if (!parsedProfile) {
       throw new HttpsError('internal', 'Claude did not return a parsable skills profile.')
     }
 
-    const enrichedProfile = enrichSkillsProfile(skillsProfile, resumeText)
+    const enrichedProfile = enrichSkillsProfile(normalizeSkillsProfile(parsedProfile), resumeText)
 
     await candidateRef.update({
       skillsProfile: enrichedProfile,
