@@ -41,16 +41,25 @@ export const analyzeResume = onCall<AnalyzeResumeRequest>(
       messages: [
         {
           role: 'user',
-          content: `You are analyzing a candidate's resume to build a skills profile for a C#/.NET/SQL technical hiring assessment.
+          content: `You are analyzing a candidate's resume to build a skills profile for a technical hiring assessment covering C#, .NET, SQL, JavaScript, TypeScript, Angular, Vue.js, React, and Node.js.
 
-Write a 2-3 sentence summary of the candidate's overall background, then list each distinct C#, .NET, or SQL-related skill you can identify. For each skill:
-- Classify it into exactly one category: "CSharp" (C# language features, OOP, LINQ, async/await, generics, etc.), "DotNet" (ASP.NET Core, Entity Framework, Web API, DI, middleware, NuGet, .NET CLI, etc.), or "SQL" (SQL Server, T-SQL, queries, joins, stored procedures, indexes, transactions, etc.).
+Write a 2-3 sentence summary of the candidate's overall background, then list each distinct technical skill you can identify. For each skill:
+- Classify it into exactly one category:
+  - "CSharp" (C# language features, OOP, LINQ, async/await, generics, etc.)
+  - "DotNet" (ASP.NET Core, Entity Framework, Web API, DI, middleware, NuGet, .NET CLI, etc.)
+  - "SQL" (SQL Server, T-SQL, queries, joins, stored procedures, indexes, transactions, etc.)
+  - "JavaScript" (JS language features, ES6+, DOM, closures, promises, prototypes, etc.)
+  - "TypeScript" (TypeScript types, generics, decorators, strict mode, utility types, etc.)
+  - "Angular" (Angular framework, components, services, RxJS, routing, directives, forms, etc.)
+  - "Vue" (Vue.js framework, Composition API, Options API, Vuex, Vue Router, directives, etc.)
+  - "React" (React library, hooks, JSX, context, state management, Next.js, etc.)
+  - "NodeJS" (Node.js runtime, Express, streams, npm packages, server-side JS, etc.)
 - Estimate the candidate's proficiency level as "beginner", "intermediate", "advanced", or "expert" based on the evidence in the resume.
 - Provide a short quote or summary of the resume text that supports this assessment.
 - Assign a frequencyScore from 1 to 5 indicating how prominently this skill appears across the resume: 1 = mentioned once in passing, 3 = appears in multiple roles or projects, 5 = a central, recurring theme throughout the resume.
 - Assign a recencyScore from 1 to 5 indicating how recently this skill was used: 5 = current role or within the last year, 4 = within the last 2-3 years, 3 = within the last 5 years, 2 = more than 5 years ago, 1 = more than 10 years ago or the resume gives no date context.
 
-Only include skills relevant to C#, .NET, and SQL — omit unrelated technologies unless they are deeply integrated with the .NET ecosystem.
+Only include skills relevant to the categories listed above — omit unrelated technologies.
 
 Resume:
 ${resumeText}`,

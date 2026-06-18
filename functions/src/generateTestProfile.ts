@@ -6,7 +6,7 @@ import type { QuestionBankEntry } from './data/questionBank'
 import type { QuestionCategory } from './types'
 
 const QUESTIONS_PER_TEST = 50
-const CATEGORIES: QuestionCategory[] = ['CSharp', 'DotNet', 'SQL']
+const CATEGORIES: QuestionCategory[] = ['CSharp', 'DotNet', 'SQL', 'JavaScript', 'TypeScript', 'Angular', 'Vue', 'React', 'NodeJS']
 
 interface GenerateTestProfileRequest {
   candidateId: string
@@ -40,7 +40,7 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
     throw new HttpsError('failed-precondition', 'Candidate has not been analyzed yet.')
   }
 
-  const categoryCounts: Record<QuestionCategory, number> = { CSharp: 0, DotNet: 0, SQL: 0 }
+  const categoryCounts = Object.fromEntries(CATEGORIES.map(c => [c, 0])) as Record<QuestionCategory, number>
   for (const skill of skills) {
     if (skill.category in categoryCounts) {
       categoryCounts[skill.category] += 1
@@ -102,13 +102,18 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
 function pickQuestions(categoryCounts: Record<QuestionCategory, number>): QuestionBankEntry[] {
   const totalSkills = CATEGORIES.reduce((sum, category) => sum + categoryCounts[category], 0)
 
-  const allocations: Record<QuestionCategory, number> = { CSharp: 0, DotNet: 0, SQL: 0 }
+  const allocations = Object.fromEntries(CATEGORIES.map(c => [c, 0])) as Record<QuestionCategory, number>
 
   if (totalSkills === 0) {
-    // Even split as much as possible to reach exactly 50
-    allocations.CSharp = 17
-    allocations.DotNet = 17
-    allocations.SQL = 16
+    // Even split across all categories using largest remainder method
+    const baseCount = Math.floor(QUESTIONS_PER_TEST / CATEGORIES.length)
+    const remainder = QUESTIONS_PER_TEST % CATEGORIES.length
+    for (const cat of CATEGORIES) {
+      allocations[cat] = baseCount
+    }
+    for (let i = 0; i < remainder; i++) {
+      allocations[CATEGORIES[i]] += 1
+    }
   } else {
     // Proportional split with largest remainder method to ensure we get exactly 50 questions
     let allocatedSum = 0
