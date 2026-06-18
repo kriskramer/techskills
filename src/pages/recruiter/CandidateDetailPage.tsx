@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { InviteLinkPanel } from '../../components/recruiter/InviteLinkPanel'
 import { SkillsProfileCard } from '../../components/recruiter/SkillsProfileCard'
 import { Card } from '../../components/shared/Card'
@@ -100,6 +100,14 @@ export function CandidateDetailPage() {
 
   return (
     <div className="space-y-6">
+      <Link
+        to="/recruiter"
+        className="inline-flex items-center gap-2 text-sm font-medium text-slate-400 transition hover:text-cyan-300"
+      >
+        <span aria-hidden="true">←</span>
+        Back to dashboard
+      </Link>
+
       <div>
         <h1 className="text-3xl font-semibold text-white">{candidate.name}</h1>
         <p className="mt-1 text-sm text-slate-400">{candidate.email}</p>

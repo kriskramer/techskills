@@ -8,6 +8,7 @@ import { TestRunnerPage } from './pages/candidate/TestRunnerPage'
 import { CandidateDetailPage } from './pages/recruiter/CandidateDetailPage'
 import { NewCandidatePage } from './pages/recruiter/NewCandidatePage'
 import { RecruiterDashboardPage } from './pages/recruiter/RecruiterDashboardPage'
+import { WhatWeDoPage } from './pages/recruiter/WhatWeDoPage'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
       <Route element={<AppLayout />}>
         <Route path="/recruiter" element={<RecruiterDashboardPage />} />
         <Route path="/recruiter/new" element={<NewCandidatePage />} />
+        <Route path="/recruiter/what-we-do" element={<WhatWeDoPage />} />
         <Route path="/recruiter/candidates/:id" element={<CandidateDetailPage />} />
       </Route>
 
