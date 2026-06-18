@@ -1,7 +1,19 @@
-import { addDoc, collection, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore'
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+} from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import type { Candidate, NewCandidateInput } from '../types/candidate'
+
+export type UpdateCandidateInput = Pick<Candidate, 'name' | 'email' | 'resumeText'>
 
 const COLLECTION = 'candidates'
 
@@ -23,6 +35,16 @@ export async function createCandidate(input: NewCandidateInput): Promise<string>
     updatedAt: serverTimestamp(),
   })
   return ref.id
+}
+
+export async function updateCandidateProfile(id: string, input: UpdateCandidateInput): Promise<void> {
+  const firestore = requireDb()
+  await updateDoc(doc(firestore, COLLECTION, id), {
+    ...input,
+    skillsProfile: null,
+    status: 'new',
+    updatedAt: serverTimestamp(),
+  })
 }
 
 export async function getCandidate(id: string): Promise<Candidate | null> {

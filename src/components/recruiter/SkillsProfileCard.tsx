@@ -1,12 +1,6 @@
 import type { Skill, SkillsProfile } from '../../types/candidate'
-import type { QuestionCategory } from '../../types/question'
+import { formatCategoryLabel } from '../../lib/categoryLabels'
 import { Card } from '../shared/Card'
-
-const CATEGORY_LABEL: Record<QuestionCategory, string> = {
-  CSharp: 'C# Language',
-  DotNet: '.NET / ASP.NET Core',
-  SQL: 'SQL & Databases',
-}
 
 const LEVEL_COLOR: Record<Skill['level'], string> = {
   beginner: 'bg-slate-700 text-slate-200',
@@ -17,6 +11,25 @@ const LEVEL_COLOR: Record<Skill['level'], string> = {
 
 interface SkillsProfileCardProps {
   profile: SkillsProfile
+}
+
+function readScore(skill: Skill, camelKey: 'frequencyScore' | 'recencyScore', snakeKey: string): number | undefined {
+  for (const value of [skill[camelKey], (skill as unknown as Record<string, unknown>)[snakeKey]]) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string' && value.trim() !== '') {
+      const parsed = Number(value)
+      if (Number.isFinite(parsed)) return parsed
+    }
+  }
+
+  return undefined
+}
+
+function formatScoreSummary(skill: Skill): string | null {
+  const frequencyScore = readScore(skill, 'frequencyScore', 'frequency_score')
+  const recencyScore = readScore(skill, 'recencyScore', 'recency_score')
+  if (frequencyScore === undefined || recencyScore === undefined) return null
+  return `${frequencyScore}/5 freq · ${recencyScore}/5 recent`
 }
 
 export function SkillsProfileCard({ profile }: SkillsProfileCardProps) {
@@ -37,21 +50,26 @@ export function SkillsProfileCard({ profile }: SkillsProfileCardProps) {
         {[...byCategory.entries()].map(([category, skills]) => (
           <div key={category}>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-              {CATEGORY_LABEL[category as QuestionCategory] ?? category}
+              {formatCategoryLabel(category)}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {skills.map((skill) => (
-                <span
-                  key={skill.name}
-                  title={`${skill.evidence} | Frequency: ${skill.frequencyScore}/5 · Recency: ${skill.recencyScore}/5`}
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${LEVEL_COLOR[skill.level]}`}
-                >
-                  {skill.name} · {skill.level}
-                  <span className="ml-1.5 opacity-60">
-                    f{skill.frequencyScore} r{skill.recencyScore}
+              {skills.map((skill) => {
+                const scoreSummary = formatScoreSummary(skill)
+                return (
+                  <span
+                    key={skill.name}
+                    title={
+                      scoreSummary
+                        ? `${skill.evidence} | Frequency: ${readScore(skill, 'frequencyScore', 'frequency_score')}/5 · Recency: ${readScore(skill, 'recencyScore', 'recency_score')}/5`
+                        : skill.evidence
+                    }
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${LEVEL_COLOR[skill.level]}`}
+                  >
+                    {skill.name} · {skill.level}
+                    {scoreSummary && <span className="ml-1.5 opacity-60">· {scoreSummary}</span>}
                   </span>
-                </span>
-              ))}
+                )
+              })}
             </div>
           </div>
         ))}

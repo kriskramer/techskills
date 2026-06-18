@@ -3,10 +3,11 @@ import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { QUESTION_BANK, TIME_LIMIT_BY_DIFFICULTY } from './data/questionBank'
 import type { QuestionBankEntry } from './data/questionBank'
+import { CATEGORY_IDS } from './data/assessmentCategories'
 import type { QuestionCategory } from './types'
 
 const QUESTIONS_PER_TEST = 50
-const CATEGORIES: QuestionCategory[] = ['CSharp', 'DotNet', 'SQL', 'JavaScript', 'TypeScript', 'Angular', 'Vue', 'React', 'NodeJS']
+const CATEGORIES = CATEGORY_IDS
 
 interface GenerateTestProfileRequest {
   candidateId: string

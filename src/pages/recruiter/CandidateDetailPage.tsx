@@ -5,8 +5,8 @@ import { SkillsProfileCard } from '../../components/recruiter/SkillsProfileCard'
 import { Card } from '../../components/shared/Card'
 import { Spinner } from '../../components/shared/Spinner'
 import { isFirebaseConfigured } from '../../lib/firebase'
-import { subscribeToCandidate } from '../../services/candidates'
-import { generateTestProfile } from '../../services/functions'
+import { subscribeToCandidate, updateCandidateProfile } from '../../services/candidates'
+import { analyzeResume, generateTestProfile } from '../../services/functions'
 import { subscribeToTest } from '../../services/tests'
 import type { Candidate } from '../../types/candidate'
 import type { TestDoc } from '../../types/test'
@@ -16,6 +16,11 @@ export function CandidateDetailPage() {
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [test, setTest] = useState<TestDoc | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editEmail, setEditEmail] = useState('')
+  const [editResumeText, setEditResumeText] = useState('')
+  const [isUpdating, setIsUpdating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -28,6 +33,20 @@ export function CandidateDetailPage() {
     return subscribeToTest(candidate.testId, setTest)
   }, [candidate?.testId])
 
+  function startEditing() {
+    if (!candidate) return
+    setEditName(candidate.name)
+    setEditEmail(candidate.email)
+    setEditResumeText(candidate.resumeText)
+    setError(null)
+    setIsEditing(true)
+  }
+
+  function cancelEditing() {
+    setIsEditing(false)
+    setError(null)
+  }
+
   async function handleGenerateTest() {
     if (!id) return
     setError(null)
@@ -38,6 +57,25 @@ export function CandidateDetailPage() {
       setError(err instanceof Error ? err.message : 'Something went wrong generating the test.')
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  async function handleUpdateProfile() {
+    if (!id) return
+    setError(null)
+    setIsUpdating(true)
+    try {
+      await updateCandidateProfile(id, {
+        name: editName,
+        email: editEmail,
+        resumeText: editResumeText,
+      })
+      await analyzeResume(id)
+      setIsEditing(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong updating this profile.')
+    } finally {
+      setIsUpdating(false)
     }
   }
 
@@ -68,8 +106,92 @@ export function CandidateDetailPage() {
       </div>
 
       <Card>
-        <h2 className="text-lg font-semibold text-white">Resume</h2>
-        <p className="mt-3 whitespace-pre-wrap text-sm text-slate-300">{candidate.resumeText}</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-white">Resume</h2>
+          {!isEditing && (
+            <button
+              type="button"
+              onClick={startEditing}
+              disabled={isUpdating}
+              className="rounded-full border border-white/20 px-4 py-1.5 text-xs font-medium text-slate-300 transition hover:border-cyan-300/60 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Update resume
+            </button>
+          )}
+        </div>
+
+        {isEditing ? (
+          <form
+            className="mt-4 space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleUpdateProfile()
+            }}
+          >
+            <div className="space-y-2">
+              <label htmlFor="edit-name" className="text-sm font-medium text-slate-200">
+                Name
+              </label>
+              <input
+                id="edit-name"
+                required
+                value={editName}
+                onChange={(event) => setEditName(event.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="edit-email" className="text-sm font-medium text-slate-200">
+                Email
+              </label>
+              <input
+                id="edit-email"
+                type="email"
+                required
+                value={editEmail}
+                onChange={(event) => setEditEmail(event.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="edit-resume" className="text-sm font-medium text-slate-200">
+                Resume text
+              </label>
+              <textarea
+                id="edit-resume"
+                required
+                rows={12}
+                value={editResumeText}
+                onChange={(event) => setEditResumeText(event.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none focus:border-cyan-300"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="submit"
+                disabled={isUpdating}
+                className="rounded-full border border-cyan-300 bg-cyan-300 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isUpdating ? 'Regenerating skills overview…' : 'Save and regenerate skills overview'}
+              </button>
+              <button
+                type="button"
+                onClick={cancelEditing}
+                disabled={isUpdating}
+                className="rounded-full border border-white/20 px-5 py-2 text-sm font-medium text-slate-300 transition hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+
+            {error && <p className="text-sm text-rose-300">{error}</p>}
+          </form>
+        ) : (
+          <p className="mt-3 whitespace-pre-wrap text-sm text-slate-300">{candidate.resumeText}</p>
+        )}
       </Card>
 
       {candidate.skillsProfile ? (
