@@ -15,10 +15,13 @@ export function AppLayout() {
           </Link>
           <nav className="flex flex-wrap items-center gap-1 text-sm">
             <NavLink to="/recruiter" end className={navLinkClass}>
-              Dashboard
+              Recruiter Dashboard
             </NavLink>
             <NavLink to="/recruiter/what-we-do" className={navLinkClass}>
               What We Do
+            </NavLink>
+            <NavLink to="/recruit/tests" className={navLinkClass}>
+              Your Results
             </NavLink>
           </nav>
         </div>

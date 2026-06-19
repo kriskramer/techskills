@@ -1,20 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
-import { QUESTION_BANK, TIME_LIMIT_BY_DIFFICULTY } from './data/questionBank'
-import type { QuestionBankEntry } from './data/questionBank'
-import { CATEGORY_IDS } from './data/assessmentCategories'
-import type { QuestionCategory } from './types'
-
-const QUESTIONS_PER_TEST = 50
-const CATEGORIES = CATEGORY_IDS
+import { TIME_LIMIT_BY_DIFFICULTY } from './data/questionBank'
+import type { SkillsProfile } from './schemas/skillsProfile'
+import { pickQuestionsForProfile } from './testQuestionAllocation'
 
 interface GenerateTestProfileRequest {
   candidateId: string
-}
-
-interface SkillsProfileSkill {
-  category: QuestionCategory
 }
 
 export const generateTestProfile = onCall<GenerateTestProfileRequest>(
@@ -35,20 +27,13 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
   }
 
   const candidate = snapshot.data() ?? {}
-  const skills = (candidate.skillsProfile?.skills ?? []) as SkillsProfileSkill[]
+  const skills = (candidate.skillsProfile?.skills ?? []) as SkillsProfile['skills']
 
   if (skills.length === 0) {
     throw new HttpsError('failed-precondition', 'Candidate has not been analyzed yet.')
   }
 
-  const categoryCounts = Object.fromEntries(CATEGORIES.map(c => [c, 0])) as Record<QuestionCategory, number>
-  for (const skill of skills) {
-    if (skill.category in categoryCounts) {
-      categoryCounts[skill.category] += 1
-    }
-  }
-
-  const questions = pickQuestions(categoryCounts)
+  const questions = pickQuestionsForProfile(skills)
   const answerKey: Record<string, string> = {}
   const testQuestions = questions.map((question) => {
     answerKey[question.id] = question.correctAnswer
@@ -96,68 +81,6 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
 
   return { token }
 })
-
-// Picks a fixed-size subset of the seed bank, weighted toward the categories
-// the candidate has the most skills in (falling back to an even split if the
-// skills profile has no recognized categories).
-function pickQuestions(categoryCounts: Record<QuestionCategory, number>): QuestionBankEntry[] {
-  const totalSkills = CATEGORIES.reduce((sum, category) => sum + categoryCounts[category], 0)
-
-  const allocations = Object.fromEntries(CATEGORIES.map(c => [c, 0])) as Record<QuestionCategory, number>
-
-  if (totalSkills === 0) {
-    // Even split across all categories using largest remainder method
-    const baseCount = Math.floor(QUESTIONS_PER_TEST / CATEGORIES.length)
-    const remainder = QUESTIONS_PER_TEST % CATEGORIES.length
-    for (const cat of CATEGORIES) {
-      allocations[cat] = baseCount
-    }
-    for (let i = 0; i < remainder; i++) {
-      allocations[CATEGORIES[i]] += 1
-    }
-  } else {
-    // Proportional split with largest remainder method to ensure we get exactly 50 questions
-    let allocatedSum = 0
-    const remainders: { category: QuestionCategory; remainder: number }[] = []
-
-    for (const category of CATEGORIES) {
-      const exact = (categoryCounts[category] / totalSkills) * QUESTIONS_PER_TEST
-      const floorVal = Math.floor(exact)
-      allocations[category] = floorVal
-      allocatedSum += floorVal
-      remainders.push({ category, remainder: exact - floorVal })
-    }
-
-    // Sort by remainder descending
-    remainders.sort((a, b) => b.remainder - a.remainder)
-
-    // Distribute remainders
-    let index = 0
-    while (allocatedSum < QUESTIONS_PER_TEST) {
-      const cat = remainders[index % remainders.length].category
-      allocations[cat] += 1
-      allocatedSum += 1
-      index++
-    }
-  }
-
-  const selected: QuestionBankEntry[] = []
-  for (const category of CATEGORIES) {
-    const pool = QUESTION_BANK.filter((question) => question.category === category)
-    const count = Math.min(allocations[category], pool.length)
-    selected.push(...shuffle(pool).slice(0, count))
-  }
-
-  // Fallback in case a category pool is smaller than allocated
-  if (selected.length < QUESTIONS_PER_TEST) {
-    const usedIds = new Set(selected.map((question) => question.id))
-    const remaining = shuffle(QUESTION_BANK.filter((question) => !usedIds.has(question.id)))
-    selected.push(...remaining.slice(0, QUESTIONS_PER_TEST - selected.length))
-  }
-
-  // Shuffle the final list of questions so they are interleaved, not grouped by category
-  return shuffle(selected)
-}
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items]

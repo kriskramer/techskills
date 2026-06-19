@@ -8,6 +8,7 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  where,
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from '../lib/firebase'
@@ -68,6 +69,22 @@ export function subscribeToCandidate(id: string, onChange: (candidate: Candidate
 export function subscribeToCandidates(onChange: (candidates: Candidate[]) => void): Unsubscribe {
   const firestore = requireDb()
   const candidatesQuery = query(collection(firestore, COLLECTION), orderBy('createdAt', 'desc'))
+  return onSnapshot(candidatesQuery, (snapshot) => {
+    onChange(snapshot.docs.map((document) => ({ id: document.id, ...(document.data() as Omit<Candidate, 'id'>) })))
+  })
+}
+
+export function subscribeToCandidatesByEmail(
+  email: string,
+  onChange: (candidates: Candidate[]) => void,
+): Unsubscribe {
+  const firestore = requireDb()
+  const normalizedEmail = email.trim()
+  const candidatesQuery = query(
+    collection(firestore, COLLECTION),
+    where('email', '==', normalizedEmail),
+    orderBy('createdAt', 'desc'),
+  )
   return onSnapshot(candidatesQuery, (snapshot) => {
     onChange(snapshot.docs.map((document) => ({ id: document.id, ...(document.data() as Omit<Candidate, 'id'>) })))
   })

@@ -1,4 +1,4 @@
-import { doc, getDoc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { scoreTest } from './functions'
@@ -48,4 +48,19 @@ export async function saveAnswer(token: string, questionId: string, answer: stri
 
 export async function submitTest(token: string): Promise<void> {
   await scoreTest(token)
+}
+
+export function subscribeToTestsForCandidate(
+  candidateId: string,
+  onChange: (tests: TestDoc[]) => void,
+): Unsubscribe {
+  const firestore = requireDb()
+  const testsQuery = query(
+    collection(firestore, COLLECTION),
+    where('candidateId', '==', candidateId),
+    orderBy('createdAt', 'desc'),
+  )
+  return onSnapshot(testsQuery, (snapshot) => {
+    onChange(snapshot.docs.map((document) => ({ id: document.id, ...(document.data() as Omit<TestDoc, 'id'>) })))
+  })
 }
