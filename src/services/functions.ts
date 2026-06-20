@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '../lib/firebase'
 import type { SkillsProfile } from '../types/candidate'
+import type { TestDifficultyPreset } from '../lib/testDifficulty'
 
 function requireFunctions() {
   if (!functions) {
@@ -26,12 +27,13 @@ interface GenerateTestProfileResponse {
 export async function generateTestProfile(
   candidateId: string,
   categoryCounts?: Record<string, number>,
+  difficulty: TestDifficultyPreset = 'medium',
 ): Promise<string> {
   const callable = httpsCallable<
-    { candidateId: string; categoryCounts?: Record<string, number> },
+    { candidateId: string; categoryCounts?: Record<string, number>; difficulty?: TestDifficultyPreset },
     GenerateTestProfileResponse
   >(requireFunctions(), 'generateTestProfile')
-  const result = await callable({ candidateId, categoryCounts })
+  const result = await callable({ candidateId, categoryCounts, difficulty })
   return result.data.token
 }
 
@@ -73,5 +75,18 @@ export async function extendTestInvite(testId: string, action: 'extend' | 'regen
   )
   const result = await callable({ testId, action })
   return result.data.token
+}
+
+interface GetTestPreviewResponse {
+  answerKey: Record<string, string>
+}
+
+export async function getTestPreview(testId: string): Promise<GetTestPreviewResponse> {
+  const callable = httpsCallable<{ testId: string }, GetTestPreviewResponse>(
+    requireFunctions(),
+    'getTestPreview',
+  )
+  const result = await callable({ testId })
+  return result.data
 }
 

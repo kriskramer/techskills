@@ -21,15 +21,17 @@ import {
   updateCandidateProfile,
   updateCandidateSkillsProfile,
 } from '../../services/candidates'
-import type { PipelineStatus } from '../../types/candidate'
+import type { TestDifficultyPreset } from '../../lib/testDifficulty'
 import { analyzeResume, generateTestProfile } from '../../services/functions'
 import { markNotificationsReadForCandidate } from '../../services/notifications'
 import { subscribeToTest, subscribeToTestsForCandidate } from '../../services/tests'
 import { useAuth } from '../../hooks/useAuth'
-import type { Candidate, SkillsProfile } from '../../types/candidate'
+import type { Candidate, PipelineStatus, SkillsProfile } from '../../types/candidate'
 import type { TestDoc } from '../../types/test'
 
 type DetailTab = 'overview' | 'history'
+
+const RESUME_PREVIEW_LENGTH = 200
 
 export function CandidateDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -49,7 +51,12 @@ export function CandidateDetailPage() {
   const [editEmail, setEditEmail] = useState('')
   const [editResumeText, setEditResumeText] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
+  const [isResumeExpanded, setIsResumeExpanded] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setIsResumeExpanded(false)
+  }, [id, candidate?.resumeText])
 
   useEffect(() => {
     if (!id || !isFirebaseConfigured) return
@@ -80,12 +87,15 @@ export function CandidateDetailPage() {
     setError(null)
   }
 
-  async function handleGenerateTest(categoryCounts?: Record<string, number>) {
+  async function handleGenerateTest(
+    categoryCounts?: Record<string, number>,
+    difficulty: TestDifficultyPreset = 'medium',
+  ) {
     if (!id) return
     setError(null)
     setIsGenerating(true)
     try {
-      await generateTestProfile(id, categoryCounts)
+      await generateTestProfile(id, categoryCounts, difficulty)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong generating the test.')
     } finally {
@@ -196,6 +206,13 @@ export function CandidateDetailPage() {
     test.status !== 'completed' &&
     test.expiresAt != null &&
     test.expiresAt.toDate() < new Date()
+
+  const resumeText = candidate.resumeText
+  const isResumeTruncated = resumeText.length > RESUME_PREVIEW_LENGTH
+  const displayedResumeText =
+    isResumeExpanded || !isResumeTruncated
+      ? resumeText
+      : resumeText.slice(0, RESUME_PREVIEW_LENGTH)
 
   return (
     <div className="space-y-6">
@@ -328,7 +345,21 @@ export function CandidateDetailPage() {
             {error && <p className="text-sm text-rose-300">{error}</p>}
           </form>
         ) : (
-          <p className="mt-3 whitespace-pre-wrap text-sm text-slate-300">{candidate.resumeText}</p>
+          <p className="mt-3 whitespace-pre-wrap text-sm text-slate-300">
+            {displayedResumeText}
+            {isResumeTruncated && (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  onClick={() => setIsResumeExpanded((expanded) => !expanded)}
+                  className="text-cyan-300 transition hover:text-cyan-200"
+                >
+                  {isResumeExpanded ? 'less...' : 'more...'}
+                </button>
+              </>
+            )}
+          </p>
         )}
       </Card>
 
@@ -403,6 +434,7 @@ export function CandidateDetailPage() {
           ) : (
             <InviteLinkPanel
               url={inviteUrl}
+              test={test}
               candidateId={id}
               candidateName={candidate.name}
               candidateEmail={candidate.email}

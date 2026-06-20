@@ -1,8 +1,9 @@
 import { QUESTION_BANK } from './data/questionBank'
 import type { QuestionBankEntry } from './data/questionBank'
 import { CATEGORY_IDS } from './data/assessmentCategories'
-import type { QuestionCategory } from './types'
+import type { QuestionCategory, QuestionDifficulty } from './types'
 import type { SkillsProfile } from './schemas/skillsProfile'
+import { DIFFICULTY_DISTRIBUTION, type TestDifficultyPreset } from './testDifficulty'
 
 const CATEGORIES = CATEGORY_IDS
 
@@ -54,7 +55,7 @@ export function computeSkillWeight(skill: ProfileSkill): number {
   return levelWeight * scoreMultiplier
 }
 
-export function allocateProportionally<T extends string>(
+export function allocateProportionally<T extends string | number>(
   weights: Record<T, number>,
   total: number,
   keys: readonly T[],
@@ -120,11 +121,77 @@ function questionMatchesSkill(question: QuestionBankEntry, skillName: string): b
   return question.skills.some((tag) => skillMatchesQuestionTag(skillName, tag))
 }
 
+const DIFFICULTY_LEVELS: QuestionDifficulty[] = [1, 2, 3, 4, 5]
+
+function allocateDifficultyCounts(
+  total: number,
+  preset: TestDifficultyPreset,
+): Record<QuestionDifficulty, number> {
+  const distribution = DIFFICULTY_DISTRIBUTION[preset]
+  const weights = Object.fromEntries(
+    DIFFICULTY_LEVELS.map((level) => [level, distribution[level] ?? 0]),
+  ) as Record<QuestionDifficulty, number>
+  return allocateProportionally(weights, total, DIFFICULTY_LEVELS)
+}
+
+function difficultiesWithFallback(target: QuestionDifficulty): QuestionDifficulty[] {
+  const order: QuestionDifficulty[] = [target]
+  for (let distance = 1; distance <= 4; distance++) {
+    const lower = (target - distance) as QuestionDifficulty
+    const higher = (target + distance) as QuestionDifficulty
+    if (lower >= 1) order.push(lower)
+    if (higher <= 5) order.push(higher)
+  }
+  return order
+}
+
+function pickOneFromPool(
+  pool: QuestionBankEntry[],
+  difficultyRemaining: Record<QuestionDifficulty, number>,
+): QuestionBankEntry | null {
+  if (pool.length === 0) {
+    return null
+  }
+
+  const prioritizedDifficulties = DIFFICULTY_LEVELS.filter((level) => difficultyRemaining[level] > 0).sort(
+    (a, b) => difficultyRemaining[b] - difficultyRemaining[a],
+  )
+
+  const tryOrder =
+    prioritizedDifficulties.length > 0
+      ? prioritizedDifficulties.flatMap((level) => difficultiesWithFallback(level))
+      : DIFFICULTY_LEVELS
+
+  const seen = new Set<QuestionDifficulty>()
+  for (const difficulty of tryOrder) {
+    if (seen.has(difficulty)) {
+      continue
+    }
+    seen.add(difficulty)
+
+    const matches = pool.filter((question) => question.difficulty === difficulty)
+    if (matches.length > 0) {
+      const picked = shuffle(matches)[0]
+      if (difficultyRemaining[picked.difficulty] > 0) {
+        difficultyRemaining[picked.difficulty] -= 1
+      }
+      return picked
+    }
+  }
+
+  const picked = shuffle(pool)[0]
+  if (difficultyRemaining[picked.difficulty] > 0) {
+    difficultyRemaining[picked.difficulty] -= 1
+  }
+  return picked
+}
+
 function pickFromCategoryPool(
   category: QuestionCategory,
   skillsInCategory: ProfileSkill[],
   allocation: number | undefined,
   usedIds: Set<string>,
+  difficultyRemaining: Record<QuestionDifficulty, number>,
 ): QuestionBankEntry[] {
   const targetCount = Math.max(allocation ?? 0, 0)
   if (targetCount <= 0) {
@@ -137,7 +204,17 @@ function pickFromCategoryPool(
   const selected: QuestionBankEntry[] = []
 
   if (skillsInCategory.length === 0) {
-    selected.push(...shuffle(pool).slice(0, targetCount))
+    for (let i = 0; i < targetCount; i++) {
+      const picked = pickOneFromPool(
+        pool.filter((question) => !usedIds.has(question.id)),
+        difficultyRemaining,
+      )
+      if (!picked) {
+        break
+      }
+      selected.push(picked)
+      usedIds.add(picked.id)
+    }
     return selected
   }
 
@@ -153,23 +230,26 @@ function pickFromCategoryPool(
       continue
     }
 
-    const skillPool = pool.filter(
-      (question) => !usedIds.has(question.id) && questionMatchesSkill(question, skill.name),
-    )
-    const picked = shuffle(skillPool).slice(0, count)
-    for (const question of picked) {
-      selected.push(question)
-      usedIds.add(question.id)
+    for (let i = 0; i < count; i++) {
+      const availablePool = pool.filter((question) => !usedIds.has(question.id))
+      const skillPool = availablePool.filter((question) => questionMatchesSkill(question, skill.name))
+      const picked = pickOneFromPool(skillPool.length > 0 ? skillPool : availablePool, difficultyRemaining)
+      if (!picked) {
+        break
+      }
+      selected.push(picked)
+      usedIds.add(picked.id)
     }
   }
 
-  if (selected.length < targetCount) {
-    const remaining = pool.filter((question) => !usedIds.has(question.id))
-    const filler = shuffle(remaining).slice(0, targetCount - selected.length)
-    for (const question of filler) {
-      selected.push(question)
-      usedIds.add(question.id)
+  while (selected.length < targetCount) {
+    const availablePool = pool.filter((question) => !usedIds.has(question.id))
+    const picked = pickOneFromPool(availablePool, difficultyRemaining)
+    if (!picked) {
+      break
     }
+    selected.push(picked)
+    usedIds.add(picked.id)
   }
 
   return selected
@@ -179,12 +259,14 @@ function pickFromCategoryPool(
 export function pickQuestionsForProfile(
   skills: ProfileSkill[],
   categoryCountOverrides?: Partial<Record<QuestionCategory, number>>,
+  difficultyPreset: TestDifficultyPreset = 'medium',
 ): QuestionBankEntry[] {
   const activeCategories = [...new Set(skills.map((skill) => skill.category))]
   const overrideTotal = categoryCountOverrides
     ? activeCategories.reduce((sum, category) => sum + Math.max(categoryCountOverrides[category] ?? 0, 0), 0)
     : 0
   const totalQuestions = overrideTotal > 0 ? overrideTotal : computeTestQuestionCount(skills.length)
+  const difficultyRemaining = allocateDifficultyCounts(totalQuestions, difficultyPreset)
 
   const categoryWeights = Object.fromEntries(CATEGORIES.map((category) => [category, 0])) as Record<
     QuestionCategory,
@@ -213,15 +295,20 @@ export function pickQuestionsForProfile(
       skillsInCategory,
       categoryAllocations[category],
       usedIds,
+      difficultyRemaining,
     )
     selected.push(...picked)
   }
 
   if (selected.length < totalQuestions) {
-    const remaining = shuffle(QUESTION_BANK.filter((question) => !usedIds.has(question.id)))
-    for (const question of remaining.slice(0, totalQuestions - selected.length)) {
-      selected.push(question)
-      usedIds.add(question.id)
+    const remaining = QUESTION_BANK.filter((question) => !usedIds.has(question.id))
+    while (selected.length < totalQuestions) {
+      const picked = pickOneFromPool(remaining.filter((question) => !usedIds.has(question.id)), difficultyRemaining)
+      if (!picked) {
+        break
+      }
+      selected.push(picked)
+      usedIds.add(picked.id)
     }
   }
 

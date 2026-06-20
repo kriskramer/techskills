@@ -11,6 +11,7 @@ export type QuestionCategory =
   | 'HTML'
   | 'CSS'
 
-export type QuestionDifficulty = 'easy' | 'medium' | 'hard'
+/** 1 = easiest, 5 = hardest */
+export type QuestionDifficulty = 1 | 2 | 3 | 4 | 5
 
 export type QuestionType = 'multiple-choice' | 'short-answer'

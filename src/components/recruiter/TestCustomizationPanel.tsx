@@ -10,11 +10,16 @@ import {
   MIN_QUESTIONS,
   scaleCategoryCountsToTotal,
 } from '../../lib/testCustomization'
+import {
+  formatDifficultyLabel,
+  TEST_DIFFICULTY_OPTIONS,
+  type TestDifficultyPreset,
+} from '../../lib/testDifficulty'
 import { Card } from '../shared/Card'
 
 interface TestCustomizationPanelProps {
   profile: SkillsProfile
-  onGenerate: (categoryCounts: Record<string, number>) => Promise<void>
+  onGenerate: (categoryCounts: Record<string, number>, difficulty: TestDifficultyPreset) => Promise<void>
   isGenerating: boolean
 }
 
@@ -23,6 +28,7 @@ export function TestCustomizationPanel({ profile, onGenerate, isGenerating }: Te
   const defaults = useMemo(() => defaultCategoryCounts(profile), [profile])
   const [countsDraft, setCountsDraft] = useState<Partial<Record<QuestionCategory, number>> | null>(null)
   const [disabledCategories, setDisabledCategories] = useState<Set<QuestionCategory>>(() => new Set())
+  const [difficulty, setDifficulty] = useState<TestDifficultyPreset>('medium')
 
   const counts = useMemo(() => {
     const base = { ...defaults }
@@ -48,7 +54,7 @@ export function TestCustomizationPanel({ profile, onGenerate, isGenerating }: Te
   }, [counts, disabledCategories])
 
   const totalQuestions = enabledCategories.reduce((sum, category) => sum + (activeCounts[category] ?? 0), 0)
-  const durationMinutes = estimateDurationMinutes(activeCounts)
+  const durationMinutes = estimateDurationMinutes(activeCounts, difficulty)
 
   function applyCounts(
     next: Partial<Record<QuestionCategory, number>>,
@@ -154,6 +160,32 @@ export function TestCustomizationPanel({ profile, onGenerate, isGenerating }: Te
         </div>
       </div>
 
+      <div className="space-y-2 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <label htmlFor="test-difficulty" className="text-sm font-semibold text-white">
+            Difficulty
+          </label>
+          <span className="text-sm font-medium text-cyan-200">{formatDifficultyLabel(difficulty)}</span>
+        </div>
+        <input
+          id="test-difficulty"
+          type="range"
+          min={0}
+          max={TEST_DIFFICULTY_OPTIONS.length - 1}
+          step={1}
+          value={TEST_DIFFICULTY_OPTIONS.indexOf(difficulty)}
+          onChange={(event) => setDifficulty(TEST_DIFFICULTY_OPTIONS[Number(event.target.value)])}
+          className="w-full accent-cyan-300"
+        />
+        <div className="flex justify-between text-xs text-slate-500">
+          {TEST_DIFFICULTY_OPTIONS.map((option) => (
+            <span key={option} className={option === difficulty ? 'font-medium text-slate-300' : undefined}>
+              {formatDifficultyLabel(option)}
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className="space-y-3">
         {categories.map((category) => {
           const isEnabled = !disabledCategories.has(category)
@@ -197,7 +229,7 @@ export function TestCustomizationPanel({ profile, onGenerate, isGenerating }: Te
       <button
         type="button"
         disabled={isGenerating || totalQuestions === 0}
-        onClick={() => void onGenerate(activeCounts)}
+        onClick={() => void onGenerate(activeCounts, difficulty)}
         className="rounded-full border border-cyan-300 bg-cyan-300 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isGenerating ? 'Generating test…' : 'Generate test'}

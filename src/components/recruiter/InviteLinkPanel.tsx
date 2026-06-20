@@ -1,18 +1,22 @@
 import { useState } from 'react'
 import { sendInvitation } from '../../services/functions'
+import type { TestDoc } from '../../types/test'
 import { Card } from '../shared/Card'
+import { TestPreviewModal } from './TestPreviewModal'
 
 interface InviteLinkPanelProps {
   url: string
+  test: TestDoc
   candidateId: string
   candidateName: string
   candidateEmail: string
 }
 
-export function InviteLinkPanel({ url, candidateId, candidateName, candidateEmail }: InviteLinkPanelProps) {
+export function InviteLinkPanel({ url, test, candidateId, candidateName, candidateEmail }: InviteLinkPanelProps) {
   const [copied, setCopied] = useState(false)
   const [sendState, setSendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [sendError, setSendError] = useState<string | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
 
   const subject = encodeURIComponent('Your Praxis assessment invite')
   const body = encodeURIComponent(
@@ -66,8 +70,16 @@ export function InviteLinkPanel({ url, candidateId, candidateName, candidateEmai
         >
           Open email draft
         </a>
+        <button
+          type="button"
+          onClick={() => setShowPreview(true)}
+          className="rounded-full border border-white/15 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-cyan-300/60 hover:text-cyan-200"
+        >
+          View Test
+        </button>
       </div>
       {sendState === 'error' && sendError && <p className="text-sm text-rose-300">{sendError}</p>}
+      {showPreview && <TestPreviewModal test={test} onClose={() => setShowPreview(false)} />}
     </Card>
   )
 }

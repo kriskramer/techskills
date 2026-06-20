@@ -5,10 +5,12 @@ import { TIME_LIMIT_BY_DIFFICULTY } from './data/questionBank'
 import type { SkillsProfile } from './schemas/skillsProfile'
 import { pickQuestionsForProfile } from './testQuestionAllocation'
 import { assertCandidateAccess, requireAuth } from './authHelpers'
+import { parseTestDifficultyPreset, type TestDifficultyPreset } from './testDifficulty'
 
 interface GenerateTestProfileRequest {
   candidateId: string
   categoryCounts?: Record<string, number>
+  difficulty?: TestDifficultyPreset
 }
 
 export const generateTestProfile = onCall<GenerateTestProfileRequest>(
@@ -16,7 +18,7 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
   async (request) => {
     requireAuth(request)
 
-    const { candidateId, categoryCounts } = request.data
+    const { candidateId, categoryCounts, difficulty: difficultyInput } = request.data
 
   if (!candidateId || typeof candidateId !== 'string') {
     throw new HttpsError('invalid-argument', 'candidateId is required.')
@@ -39,7 +41,8 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
     throw new HttpsError('failed-precondition', 'Candidate has not been analyzed yet.')
   }
 
-  const questions = pickQuestionsForProfile(skills, categoryCounts)
+  const difficulty = parseTestDifficultyPreset(difficultyInput)
+  const questions = pickQuestionsForProfile(skills, categoryCounts, difficulty)
   const answerKey: Record<string, string> = {}
   const testQuestions = questions.map((question) => {
     answerKey[question.id] = question.correctAnswer

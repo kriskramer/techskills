@@ -1,5 +1,6 @@
 import type { QuestionCategory } from '../types/question'
 import type { Skill, SkillsProfile } from '../types/candidate'
+import { averageSecondsPerQuestion, type TestDifficultyPreset } from './testDifficulty'
 
 const LEVEL_WEIGHT: Record<Skill['level'], number> = {
   beginner: 1,
@@ -11,8 +12,6 @@ const LEVEL_WEIGHT: Record<Skill['level'], number> = {
 export const MIN_QUESTIONS = 30
 export const MAX_QUESTIONS = 80
 
-/** Average per-question time for preview (upper bound of question bank time limits). */
-const SECONDS_PER_QUESTION = 30
 
 function computeSkillWeight(skill: Skill): number {
   const levelWeight = LEVEL_WEIGHT[skill.level] ?? 2
@@ -91,10 +90,13 @@ export function defaultCategoryCounts(profile: SkillsProfile): Record<QuestionCa
   return allocations as Record<QuestionCategory, number>
 }
 
-/** Rough duration preview based on per-question time limits (~30 seconds each). */
-export function estimateDurationMinutes(categoryCounts: Record<string, number>): number {
+/** Rough duration preview based on difficulty-weighted per-question time limits. */
+export function estimateDurationMinutes(
+  categoryCounts: Record<string, number>,
+  difficulty: TestDifficultyPreset = 'medium',
+): number {
   const total = Object.values(categoryCounts).reduce((sum, count) => sum + count, 0)
-  return Math.max(1, Math.ceil((total * SECONDS_PER_QUESTION) / 60))
+  return Math.max(1, Math.ceil((total * averageSecondsPerQuestion(difficulty)) / 60))
 }
 
 /** Scale category counts to a new total while preserving relative proportions. */
