@@ -61,6 +61,11 @@ interface ExtendTestInviteResponse {
   action: 'extend' | 'regenerate'
 }
 
+export async function cancelTest(testId: string): Promise<void> {
+  const callable = httpsCallable<{ testId: string }, { success: boolean }>(requireFunctions(), 'cancelTest')
+  await callable({ testId })
+}
+
 export async function extendTestInvite(testId: string, action: 'extend' | 'regenerate'): Promise<string> {
   const callable = httpsCallable<{ testId: string; action: 'extend' | 'regenerate' }, ExtendTestInviteResponse>(
     requireFunctions(),

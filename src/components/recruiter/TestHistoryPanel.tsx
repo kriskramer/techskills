@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { cancelTest, extendTestInvite, sendInvitation } from '../../services/functions'
 import type { TestDoc } from '../../types/test'
 import { Card } from '../shared/Card'
 
@@ -19,21 +21,69 @@ function scorePercent(test: TestDoc): number | null {
 }
 
 function isTestExpired(test: TestDoc): boolean {
-  return test.status !== 'completed' && test.expiresAt != null && test.expiresAt.toDate() < new Date()
+  return test.status === 'expired' || (test.status !== 'completed' && test.expiresAt != null && test.expiresAt.toDate() < new Date())
+}
+
+function isActiveCurrentTest(test: TestDoc, currentTestId: string | null): boolean {
+  return test.id === currentTestId && !isTestExpired(test) && (test.status === 'pending' || test.status === 'in-progress')
 }
 
 interface TestHistoryPanelProps {
   tests: TestDoc[]
   currentTestId: string | null
+  candidateId: string
 }
 
-export function TestHistoryPanel({ tests, currentTestId }: TestHistoryPanelProps) {
+export function TestHistoryPanel({ tests, currentTestId, candidateId }: TestHistoryPanelProps) {
+  const [workingTestId, setWorkingTestId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [resentTestId, setResentTestId] = useState<string | null>(null)
+
   if (tests.length === 0) {
     return (
       <Card>
         <p className="text-sm text-slate-400">No test attempts yet. Generate a test from the overview tab.</p>
       </Card>
     )
+  }
+
+  async function handleCancel(test: TestDoc) {
+    setActionError(null)
+    setWorkingTestId(test.id)
+    try {
+      await cancelTest(test.id)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Something went wrong cancelling this test.')
+    } finally {
+      setWorkingTestId(null)
+    }
+  }
+
+  async function handleResend(test: TestDoc) {
+    setActionError(null)
+    setWorkingTestId(test.id)
+    const inviteUrl = `${window.location.origin}/test/${test.id}`
+    try {
+      await sendInvitation(candidateId, inviteUrl)
+      setResentTestId(test.id)
+      setTimeout(() => setResentTestId((current) => (current === test.id ? null : current)), 3000)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Something went wrong sending the invite.')
+    } finally {
+      setWorkingTestId(null)
+    }
+  }
+
+  async function handleRestart(test: TestDoc) {
+    setActionError(null)
+    setWorkingTestId(test.id)
+    try {
+      await extendTestInvite(test.id, 'regenerate')
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Something went wrong restarting this test.')
+    } finally {
+      setWorkingTestId(null)
+    }
   }
 
   return (
@@ -43,6 +93,8 @@ export function TestHistoryPanel({ tests, currentTestId }: TestHistoryPanelProps
         const pct = scorePercent(test)
         const dateLabel = formatTimestamp(test.completedAt ?? test.createdAt)
         const isCurrent = test.id === currentTestId
+        const showActions = isActiveCurrentTest(test, currentTestId)
+        const isWorking = workingTestId === test.id
 
         return (
           <Card key={test.id} className={isCurrent ? 'border-cyan-300/40' : undefined}>
@@ -77,9 +129,42 @@ export function TestHistoryPanel({ tests, currentTestId }: TestHistoryPanelProps
                 {expired ? 'Expired' : STATUS_LABEL[test.status]}
               </span>
             </div>
+
+            {showActions && (
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4">
+                <button
+                  type="button"
+                  disabled={isWorking}
+                  onClick={() => void handleCancel(test)}
+                  className="rounded-full border border-rose-500/40 px-4 py-1.5 text-xs font-medium text-rose-200 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isWorking ? 'Working…' : 'Cancel test'}
+                </button>
+                {test.status === 'pending' ? (
+                  <button
+                    type="button"
+                    disabled={isWorking}
+                    onClick={() => void handleResend(test)}
+                    className="rounded-full border border-cyan-300/60 px-4 py-1.5 text-xs font-medium text-cyan-200 transition hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {resentTestId === test.id ? 'Invite sent!' : isWorking ? 'Sending…' : 'Resend invite'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isWorking}
+                    onClick={() => void handleRestart(test)}
+                    className="rounded-full border border-cyan-300 bg-cyan-300 px-4 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isWorking ? 'Working…' : 'Restart test'}
+                  </button>
+                )}
+              </div>
+            )}
           </Card>
         )
       })}
+      {actionError && <p className="text-sm text-rose-300">{actionError}</p>}
     </div>
   )
 }

@@ -48,14 +48,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isRecruiterAuthDisabled || !user || !db) return
 
     const ref = doc(db, 'users', user.uid)
-    return onSnapshot(ref, (snapshot) => {
-      if (snapshot.exists()) {
-        setProfile({ uid: user.uid, ...(snapshot.data() as Omit<RecruiterProfile, 'uid'>) })
-      } else {
-        void ensureUserProfile(user).then(setProfile)
-      }
-      setLoading(false)
-    })
+    return onSnapshot(
+      ref,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          setProfile({ uid: user.uid, ...(snapshot.data() as Omit<RecruiterProfile, 'uid'>) })
+        } else {
+          void ensureUserProfile(user).then(setProfile)
+        }
+        setLoading(false)
+      },
+      (error) => {
+        console.error('User profile subscription failed:', error)
+        setLoading(false)
+      },
+    )
   }, [user])
 
   const value = useMemo(

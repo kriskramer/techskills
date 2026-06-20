@@ -6,14 +6,14 @@ import { markAllNotificationsRead, markNotificationRead, subscribeToNotification
 import type { RecruiterNotification } from '../../types/notification'
 
 export function NotificationBell() {
-  const { uid, isAuthenticated } = useAuth()
+  const { uid, isAuthenticated, loading } = useAuth()
   const [notifications, setNotifications] = useState<RecruiterNotification[]>([])
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    if (!uid || !isFirebaseConfigured || !isAuthenticated) return
+    if (!uid || !isFirebaseConfigured || !isAuthenticated || loading) return
     return subscribeToNotifications(uid, setNotifications)
-  }, [uid, isAuthenticated])
+  }, [uid, isAuthenticated, loading])
 
   const unread = notifications.filter((notification) => !notification.read)
 

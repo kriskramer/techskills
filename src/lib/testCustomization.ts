@@ -8,8 +8,11 @@ const LEVEL_WEIGHT: Record<Skill['level'], number> = {
   expert: 4,
 }
 
-const MIN_QUESTIONS = 30
-const MAX_QUESTIONS = 80
+export const MIN_QUESTIONS = 30
+export const MAX_QUESTIONS = 80
+
+/** Average per-question time for preview (upper bound of question bank time limits). */
+const SECONDS_PER_QUESTION = 30
 
 function computeSkillWeight(skill: Skill): number {
   const levelWeight = LEVEL_WEIGHT[skill.level] ?? 2
@@ -88,10 +91,21 @@ export function defaultCategoryCounts(profile: SkillsProfile): Record<QuestionCa
   return allocations as Record<QuestionCategory, number>
 }
 
-/** Rough duration preview: ~90 seconds average per question. */
+/** Rough duration preview based on per-question time limits (~30 seconds each). */
 export function estimateDurationMinutes(categoryCounts: Record<string, number>): number {
   const total = Object.values(categoryCounts).reduce((sum, count) => sum + count, 0)
-  return Math.max(1, Math.ceil((total * 90) / 60))
+  return Math.max(1, Math.ceil((total * SECONDS_PER_QUESTION) / 60))
+}
+
+/** Scale category counts to a new total while preserving relative proportions. */
+export function scaleCategoryCountsToTotal(
+  current: Record<string, number>,
+  categories: string[],
+  newTotal: number,
+): Record<string, number> {
+  const safeTotal = Math.round(Math.min(Math.max(newTotal, 0), MAX_QUESTIONS))
+  const weights = Object.fromEntries(categories.map((category) => [category, current[category] ?? 0]))
+  return allocateProportionally(weights, safeTotal, categories)
 }
 
 export function activeCategories(profile: SkillsProfile): QuestionCategory[] {

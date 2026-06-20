@@ -30,14 +30,21 @@ export function subscribeToNotifications(
     orderBy('createdAt', 'desc'),
   )
 
-  return onSnapshot(notificationsQuery, (snapshot) => {
-    onChange(
-      snapshot.docs.map((document) => ({
-        id: document.id,
-        ...(document.data() as Omit<RecruiterNotification, 'id'>),
-      })),
-    )
-  })
+  return onSnapshot(
+    notificationsQuery,
+    (snapshot) => {
+      onChange(
+        snapshot.docs.map((document) => ({
+          id: document.id,
+          ...(document.data() as Omit<RecruiterNotification, 'id'>),
+        })),
+      )
+    },
+    (error) => {
+      console.error('Notifications subscription failed:', error)
+      onChange([])
+    },
+  )
 }
 
 export async function markNotificationRead(uid: string, notificationId: string): Promise<void> {

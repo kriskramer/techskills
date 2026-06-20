@@ -58,10 +58,7 @@ export function NewSubmissionPanel() {
   }
 
   return (
-    <Card
-      id="new-submission"
-      className="space-y-5 border-cyan-300/45 bg-cyan-300/[0.07] shadow-lg shadow-cyan-950/40"
-    >
+    <Card id="new-submission" variant="accent" className="space-y-5">
       <div>
         <h2 className="text-lg font-semibold text-white">New submission</h2>
         <p className="mt-1 text-sm text-slate-400">

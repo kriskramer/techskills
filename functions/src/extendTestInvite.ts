@@ -65,6 +65,8 @@ export const extendTestInvite = onCall<ExtendTestInviteRequest>({ invoker: 'publ
     throw new HttpsError('failed-precondition', 'Candidate has not been analyzed yet.')
   }
 
+  await testRef.update({ status: 'expired' })
+
   const token = await createReplacementTest(db, candidateId, candidate, skills)
   return { token, action }
 })

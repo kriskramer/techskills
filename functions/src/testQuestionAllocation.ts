@@ -123,10 +123,11 @@ function questionMatchesSkill(question: QuestionBankEntry, skillName: string): b
 function pickFromCategoryPool(
   category: QuestionCategory,
   skillsInCategory: ProfileSkill[],
-  allocation: number,
+  allocation: number | undefined,
   usedIds: Set<string>,
 ): QuestionBankEntry[] {
-  if (allocation <= 0) {
+  const targetCount = Math.max(allocation ?? 0, 0)
+  if (targetCount <= 0) {
     return []
   }
 
@@ -136,7 +137,7 @@ function pickFromCategoryPool(
   const selected: QuestionBankEntry[] = []
 
   if (skillsInCategory.length === 0) {
-    selected.push(...shuffle(pool).slice(0, allocation))
+    selected.push(...shuffle(pool).slice(0, targetCount))
     return selected
   }
 
@@ -144,7 +145,7 @@ function pickFromCategoryPool(
     skillsInCategory.map((skill) => [skill.name, computeSkillWeight(skill)]),
   ) as Record<string, number>
   const skillNames = skillsInCategory.map((skill) => skill.name)
-  const skillAllocations = allocateProportionally(skillWeights, allocation, skillNames)
+  const skillAllocations = allocateProportionally(skillWeights, targetCount, skillNames)
 
   for (const skill of skillsInCategory) {
     const count = skillAllocations[skill.name]
@@ -162,9 +163,9 @@ function pickFromCategoryPool(
     }
   }
 
-  if (selected.length < allocation) {
+  if (selected.length < targetCount) {
     const remaining = pool.filter((question) => !usedIds.has(question.id))
-    const filler = shuffle(remaining).slice(0, allocation - selected.length)
+    const filler = shuffle(remaining).slice(0, targetCount - selected.length)
     for (const question of filler) {
       selected.push(question)
       usedIds.add(question.id)
@@ -199,7 +200,7 @@ export function pickQuestionsForProfile(
   const categoryAllocations =
     overrideTotal > 0
       ? (Object.fromEntries(
-          activeCategories.map((category) => [category, Math.max(categoryCountOverrides?.[category] ?? 0, 0)]),
+          CATEGORIES.map((category) => [category, Math.max(categoryCountOverrides?.[category] ?? 0, 0)]),
         ) as Record<QuestionCategory, number>)
       : allocateProportionally(categoryWeights, totalQuestions, CATEGORIES)
   const usedIds = new Set<string>()
@@ -224,7 +225,7 @@ export function pickQuestionsForProfile(
     }
   }
 
-  return shuffle(selected)
+  return shuffle(selected.slice(0, totalQuestions))
 }
 
 function shuffle<T>(items: T[]): T[] {

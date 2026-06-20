@@ -1,10 +1,16 @@
-import { collection, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
-import type { Unsubscribe } from 'firebase/firestore'
+import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
+import type { QueryDocumentSnapshot, Unsubscribe } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { scoreTest } from './functions'
 import type { TestDoc } from '../types/test'
 
 const COLLECTION = 'tests'
+
+function mapTests(docs: QueryDocumentSnapshot[]): TestDoc[] {
+  return docs
+    .map((document) => ({ id: document.id, ...(document.data() as Omit<TestDoc, 'id'>) }))
+    .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0))
+}
 
 function requireDb() {
   if (!db) {
@@ -22,13 +28,20 @@ export async function getTest(token: string): Promise<TestDoc | null> {
 
 export function subscribeToTest(token: string, onChange: (test: TestDoc | null) => void): Unsubscribe {
   const firestore = requireDb()
-  return onSnapshot(doc(firestore, COLLECTION, token), (snapshot) => {
-    if (!snapshot.exists()) {
+  return onSnapshot(
+    doc(firestore, COLLECTION, token),
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        onChange(null)
+        return
+      }
+      onChange({ id: snapshot.id, ...(snapshot.data() as Omit<TestDoc, 'id'>) })
+    },
+    (error) => {
+      console.error('Test subscription failed:', error)
       onChange(null)
-      return
-    }
-    onChange({ id: snapshot.id, ...(snapshot.data() as Omit<TestDoc, 'id'>) })
-  })
+    },
+  )
 }
 
 export async function startTest(token: string): Promise<void> {
@@ -55,12 +68,13 @@ export function subscribeToTestsForCandidate(
   onChange: (tests: TestDoc[]) => void,
 ): Unsubscribe {
   const firestore = requireDb()
-  const testsQuery = query(
-    collection(firestore, COLLECTION),
-    where('candidateId', '==', candidateId),
-    orderBy('createdAt', 'desc'),
+  const testsQuery = query(collection(firestore, COLLECTION), where('candidateId', '==', candidateId))
+  return onSnapshot(
+    testsQuery,
+    (snapshot) => onChange(mapTests(snapshot.docs)),
+    (error) => {
+      console.error('Tests for candidate subscription failed:', error)
+      onChange([])
+    },
   )
-  return onSnapshot(testsQuery, (snapshot) => {
-    onChange(snapshot.docs.map((document) => ({ id: document.id, ...(document.data() as Omit<TestDoc, 'id'>) })))
-  })
 }

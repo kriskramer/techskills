@@ -4,19 +4,24 @@ import {
   doc,
   getDoc,
   onSnapshot,
-  orderBy,
   query,
   serverTimestamp,
   updateDoc,
   where,
 } from 'firebase/firestore'
-import type { Unsubscribe } from 'firebase/firestore'
+import type { QueryDocumentSnapshot, Unsubscribe } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import type { Candidate, NewCandidateInput, PipelineStatus, SkillsProfile } from '../types/candidate'
 
 export type UpdateCandidateInput = Pick<Candidate, 'name' | 'email' | 'resumeText'>
 
 const COLLECTION = 'candidates'
+
+function mapCandidates(docs: QueryDocumentSnapshot[]): Candidate[] {
+  return docs
+    .map((document) => ({ id: document.id, ...(document.data() as Omit<Candidate, 'id'>) }))
+    .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0))
+}
 
 function requireDb() {
   if (!db) {
@@ -111,13 +116,20 @@ export async function getCandidate(id: string): Promise<Candidate | null> {
 
 export function subscribeToCandidate(id: string, onChange: (candidate: Candidate | null) => void): Unsubscribe {
   const firestore = requireDb()
-  return onSnapshot(doc(firestore, COLLECTION, id), (snapshot) => {
-    if (!snapshot.exists()) {
+  return onSnapshot(
+    doc(firestore, COLLECTION, id),
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        onChange(null)
+        return
+      }
+      onChange({ id: snapshot.id, ...(snapshot.data() as Omit<Candidate, 'id'>) })
+    },
+    (error) => {
+      console.error('Candidate subscription failed:', error)
       onChange(null)
-      return
-    }
-    onChange({ id: snapshot.id, ...(snapshot.data() as Omit<Candidate, 'id'>) })
-  })
+    },
+  )
 }
 
 export function subscribeToCandidates(
@@ -125,14 +137,15 @@ export function subscribeToCandidates(
   onChange: (candidates: Candidate[]) => void,
 ): Unsubscribe {
   const firestore = requireDb()
-  const candidatesQuery = query(
-    collection(firestore, COLLECTION),
-    where('createdBy', '==', createdBy),
-    orderBy('createdAt', 'desc'),
+  const candidatesQuery = query(collection(firestore, COLLECTION), where('createdBy', '==', createdBy))
+  return onSnapshot(
+    candidatesQuery,
+    (snapshot) => onChange(mapCandidates(snapshot.docs)),
+    (error) => {
+      console.error('Candidates subscription failed:', error)
+      onChange([])
+    },
   )
-  return onSnapshot(candidatesQuery, (snapshot) => {
-    onChange(snapshot.docs.map((document) => ({ id: document.id, ...(document.data() as Omit<Candidate, 'id'>) })))
-  })
 }
 
 export function subscribeToCandidatesByEmail(
@@ -141,12 +154,13 @@ export function subscribeToCandidatesByEmail(
 ): Unsubscribe {
   const firestore = requireDb()
   const normalizedEmail = email.trim()
-  const candidatesQuery = query(
-    collection(firestore, COLLECTION),
-    where('email', '==', normalizedEmail),
-    orderBy('createdAt', 'desc'),
+  const candidatesQuery = query(collection(firestore, COLLECTION), where('email', '==', normalizedEmail))
+  return onSnapshot(
+    candidatesQuery,
+    (snapshot) => onChange(mapCandidates(snapshot.docs)),
+    (error) => {
+      console.error('Candidates by email subscription failed:', error)
+      onChange([])
+    },
   )
-  return onSnapshot(candidatesQuery, (snapshot) => {
-    onChange(snapshot.docs.map((document) => ({ id: document.id, ...(document.data() as Omit<Candidate, 'id'>) })))
-  })
 }

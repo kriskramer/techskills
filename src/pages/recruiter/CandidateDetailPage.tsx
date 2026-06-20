@@ -232,7 +232,7 @@ export function CandidateDetailPage() {
       {activeTab === 'history' ? (
         <section className="space-y-4">
           <p className="text-sm text-slate-400">All test attempts for this candidate, newest first.</p>
-          <TestHistoryPanel tests={testHistory} currentTestId={candidate.testId} />
+          <TestHistoryPanel tests={testHistory} currentTestId={candidate.testId} candidateId={id} />
         </section>
       ) : (
         <>
