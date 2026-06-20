@@ -1,14 +1,11 @@
 import { useEffect, useState } from 'react'
+import { formatQuestionDifficultyLabel, questionDifficultyBadgeClass } from '../../lib/questionDifficulty'
 import { getTestPreview } from '../../services/functions'
 import type { TestDoc } from '../../types/test'
 
 interface TestPreviewModalProps {
   test: TestDoc
   onClose: () => void
-}
-
-function formatQuestionDifficulty(level: number): string {
-  return `Level ${level}/5`
 }
 
 export function TestPreviewModal({ test, onClose }: TestPreviewModalProps) {
@@ -120,8 +117,10 @@ export function TestPreviewModal({ test, onClose }: TestPreviewModalProps) {
                       <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2.5 py-0.5 text-xs font-medium text-cyan-200">
                         {question.category}
                       </span>
-                      <span className="rounded-full border border-white/10 bg-slate-900/70 px-2.5 py-0.5 text-xs font-medium text-slate-300">
-                        {formatQuestionDifficulty(question.difficulty)}
+                      <span
+                        className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${questionDifficultyBadgeClass(question)}`}
+                      >
+                        {formatQuestionDifficultyLabel(question)}
                       </span>
                     </div>
 

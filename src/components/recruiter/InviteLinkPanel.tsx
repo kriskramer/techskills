@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { isTestPreviewEnabled } from '../../lib/features'
 import { sendInvitation } from '../../services/functions'
 import type { TestDoc } from '../../types/test'
 import { Card } from '../shared/Card'
@@ -70,16 +71,20 @@ export function InviteLinkPanel({ url, test, candidateId, candidateName, candida
         >
           Open email draft
         </a>
-        <button
-          type="button"
-          onClick={() => setShowPreview(true)}
-          className="rounded-full border border-white/15 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-cyan-300/60 hover:text-cyan-200"
-        >
-          View Test
-        </button>
+        {isTestPreviewEnabled && (
+          <button
+            type="button"
+            onClick={() => setShowPreview(true)}
+            className="rounded-full border border-white/15 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-cyan-300/60 hover:text-cyan-200"
+          >
+            View Test
+          </button>
+        )}
       </div>
       {sendState === 'error' && sendError && <p className="text-sm text-rose-300">{sendError}</p>}
-      {showPreview && <TestPreviewModal test={test} onClose={() => setShowPreview(false)} />}
+      {isTestPreviewEnabled && showPreview && (
+        <TestPreviewModal test={test} onClose={() => setShowPreview(false)} />
+      )}
     </Card>
   )
 }

@@ -1,5 +1,5 @@
 import type { Timestamp } from 'firebase/firestore'
-import type { QuestionCategory, QuestionDifficulty, QuestionType } from './question'
+import type { QuestionCategory, QuestionDifficulty, LegacyQuestionDifficulty, QuestionType } from './question'
 
 export type TestStatus = 'pending' | 'in-progress' | 'completed' | 'expired'
 
@@ -9,7 +9,7 @@ export interface TestQuestion {
   prompt: string
   type: QuestionType
   options: string[] | null
-  difficulty: QuestionDifficulty
+  difficulty: QuestionDifficulty | LegacyQuestionDifficulty
   timeLimitSeconds: number
   skills: string[]
 }
