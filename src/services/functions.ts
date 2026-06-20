@@ -23,12 +23,15 @@ interface GenerateTestProfileResponse {
   token: string
 }
 
-export async function generateTestProfile(candidateId: string): Promise<string> {
-  const callable = httpsCallable<{ candidateId: string }, GenerateTestProfileResponse>(
-    requireFunctions(),
-    'generateTestProfile',
-  )
-  const result = await callable({ candidateId })
+export async function generateTestProfile(
+  candidateId: string,
+  categoryCounts?: Record<string, number>,
+): Promise<string> {
+  const callable = httpsCallable<
+    { candidateId: string; categoryCounts?: Record<string, number> },
+    GenerateTestProfileResponse
+  >(requireFunctions(), 'generateTestProfile')
+  const result = await callable({ candidateId, categoryCounts })
   return result.data.token
 }
 
@@ -51,5 +54,19 @@ interface ScoreTestResponse {
 export async function scoreTest(testId: string): Promise<void> {
   const callable = httpsCallable<{ testId: string }, ScoreTestResponse>(requireFunctions(), 'scoreTest')
   await callable({ testId })
+}
+
+interface ExtendTestInviteResponse {
+  token: string
+  action: 'extend' | 'regenerate'
+}
+
+export async function extendTestInvite(testId: string, action: 'extend' | 'regenerate'): Promise<string> {
+  const callable = httpsCallable<{ testId: string; action: 'extend' | 'regenerate' }, ExtendTestInviteResponse>(
+    requireFunctions(),
+    'extendTestInvite',
+  )
+  const result = await callable({ testId, action })
+  return result.data.token
 }
 

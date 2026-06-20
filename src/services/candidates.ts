@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore'
 import type { Unsubscribe } from 'firebase/firestore'
 import { db } from '../lib/firebase'
-import type { Candidate, NewCandidateInput } from '../types/candidate'
+import type { Candidate, NewCandidateInput, PipelineStatus, SkillsProfile } from '../types/candidate'
 
 export type UpdateCandidateInput = Pick<Candidate, 'name' | 'email' | 'resumeText'>
 
@@ -32,6 +32,11 @@ export async function createCandidate(input: NewCandidateInput): Promise<string>
     status: 'new',
     skillsProfile: null,
     testId: null,
+    analysisError: null,
+    reviewedAt: null,
+    pipelineStatus: 'active',
+    pipelineNote: null,
+    resumeFileUrl: null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -44,6 +49,55 @@ export async function updateCandidateProfile(id: string, input: UpdateCandidateI
     ...input,
     skillsProfile: null,
     status: 'new',
+    analysisError: null,
+    reviewedAt: null,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function updateCandidateSkillsProfile(id: string, skillsProfile: SkillsProfile): Promise<void> {
+  const firestore = requireDb()
+  await updateDoc(doc(firestore, COLLECTION, id), {
+    skillsProfile,
+    status: 'analyzed',
+    analysisError: null,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function markCandidateReviewed(id: string): Promise<void> {
+  const firestore = requireDb()
+  await updateDoc(doc(firestore, COLLECTION, id), {
+    reviewedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function updateCandidatePipeline(
+  id: string,
+  pipelineStatus: PipelineStatus,
+  pipelineNote: string | null,
+): Promise<void> {
+  const firestore = requireDb()
+  await updateDoc(doc(firestore, COLLECTION, id), {
+    pipelineStatus,
+    pipelineNote: pipelineNote?.trim() || null,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function updateCandidateResumeFileUrl(id: string, resumeFileUrl: string | null): Promise<void> {
+  const firestore = requireDb()
+  await updateDoc(doc(firestore, COLLECTION, id), {
+    resumeFileUrl,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function clearCandidateAnalysisError(id: string): Promise<void> {
+  const firestore = requireDb()
+  await updateDoc(doc(firestore, COLLECTION, id), {
+    analysisError: null,
     updatedAt: serverTimestamp(),
   })
 }
@@ -66,9 +120,16 @@ export function subscribeToCandidate(id: string, onChange: (candidate: Candidate
   })
 }
 
-export function subscribeToCandidates(onChange: (candidates: Candidate[]) => void): Unsubscribe {
+export function subscribeToCandidates(
+  createdBy: string,
+  onChange: (candidates: Candidate[]) => void,
+): Unsubscribe {
   const firestore = requireDb()
-  const candidatesQuery = query(collection(firestore, COLLECTION), orderBy('createdAt', 'desc'))
+  const candidatesQuery = query(
+    collection(firestore, COLLECTION),
+    where('createdBy', '==', createdBy),
+    orderBy('createdAt', 'desc'),
+  )
   return onSnapshot(candidatesQuery, (snapshot) => {
     onChange(snapshot.docs.map((document) => ({ id: document.id, ...(document.data() as Omit<Candidate, 'id'>) })))
   })

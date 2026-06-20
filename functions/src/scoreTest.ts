@@ -41,6 +41,7 @@ export const scoreTest = onCall<ScoreTestRequest>(
     }
 
     const testData = testSnap.data()!
+    const candidateId = testData.candidateId as string
 
     if (testData.status === 'completed') {
       return { score: testData.score }
@@ -90,11 +91,47 @@ export const scoreTest = onCall<ScoreTestRequest>(
       questionBreakdown,
     })
 
-    await sendRecruiterNotification(resendApiKey.value(), testData.candidateId as string, testData.candidateName as string, score)
+    await db.collection('candidates').doc(candidateId).update({
+      status: 'completed',
+      updatedAt: FieldValue.serverTimestamp(),
+    })
+
+    await createInAppNotification(db, candidateId, testId, testData.candidateName as string, score)
+
+    await sendRecruiterNotification(
+      resendApiKey.value(),
+      candidateId,
+      testData.candidateName as string,
+      score,
+    )
 
     return { score }
   },
 )
+
+async function createInAppNotification(
+  db: FirebaseFirestore.Firestore,
+  candidateId: string,
+  testId: string,
+  candidateName: string,
+  score: { correct: number; total: number },
+): Promise<void> {
+  const candidateSnap = await db.collection('candidates').doc(candidateId).get()
+  const createdBy = candidateSnap.data()?.createdBy as string | undefined
+  if (!createdBy) return
+
+  const pct = score.total > 0 ? Math.round((score.correct / score.total) * 100) : 0
+
+  await db.collection('users').doc(createdBy).collection('notifications').add({
+    type: 'test_completed',
+    candidateId,
+    candidateName,
+    testId,
+    message: `${candidateName} completed their assessment (${pct}%)`,
+    read: false,
+    createdAt: FieldValue.serverTimestamp(),
+  })
+}
 
 async function sendRecruiterNotification(
   apiKey: string,
@@ -102,9 +139,16 @@ async function sendRecruiterNotification(
   candidateName: string,
   score: { correct: number; total: number; byCategory: Record<string, ScoreBreakdown>; bySkill: Record<string, ScoreBreakdown> },
 ): Promise<void> {
-  const recruiterEmail = process.env.RECRUITER_EMAIL
+  const db = getFirestore()
+  const candidateSnap = await db.collection('candidates').doc(candidateId).get()
+  const candidateData = candidateSnap.data()
+  const recruiterEmail =
+    (candidateData?.recruiterEmail as string | undefined)?.trim() || process.env.RECRUITER_EMAIL
+
   if (!recruiterEmail) {
-    console.warn('RECRUITER_EMAIL is not set — skipping recruiter notification. Set it in functions/.env.local or as a Firebase environment variable.')
+    console.warn(
+      'No recruiter email on candidate and RECRUITER_EMAIL is not set — skipping recruiter notification.',
+    )
     return
   }
 

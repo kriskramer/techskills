@@ -1,22 +1,50 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { ExpiredInvitePanel } from '../../components/recruiter/ExpiredInvitePanel'
 import { InviteLinkPanel } from '../../components/recruiter/InviteLinkPanel'
+import { PipelineActionsPanel } from '../../components/recruiter/PipelineActionsPanel'
+import { ResumeFileUpload } from '../../components/recruiter/ResumeFileUpload'
+import { ResumeTestComparisonPanel } from '../../components/recruiter/ResumeTestComparisonPanel'
 import { SkillsProfileCard } from '../../components/recruiter/SkillsProfileCard'
+import { SkillsProfileEditor } from '../../components/recruiter/SkillsProfileEditor'
+import { TestCustomizationPanel } from '../../components/recruiter/TestCustomizationPanel'
+import { TestHistoryPanel } from '../../components/recruiter/TestHistoryPanel'
 import { Card } from '../../components/shared/Card'
 import { Spinner } from '../../components/shared/Spinner'
 import { isFirebaseConfigured } from '../../lib/firebase'
-import { subscribeToCandidate, updateCandidateProfile } from '../../services/candidates'
+import { printAssessmentReport } from '../../lib/assessmentReport'
+import {
+  clearCandidateAnalysisError,
+  markCandidateReviewed,
+  subscribeToCandidate,
+  updateCandidatePipeline,
+  updateCandidateProfile,
+  updateCandidateSkillsProfile,
+} from '../../services/candidates'
+import type { PipelineStatus } from '../../types/candidate'
 import { analyzeResume, generateTestProfile } from '../../services/functions'
-import { subscribeToTest } from '../../services/tests'
-import type { Candidate } from '../../types/candidate'
+import { markNotificationsReadForCandidate } from '../../services/notifications'
+import { subscribeToTest, subscribeToTestsForCandidate } from '../../services/tests'
+import { useAuth } from '../../hooks/useAuth'
+import type { Candidate, SkillsProfile } from '../../types/candidate'
 import type { TestDoc } from '../../types/test'
+
+type DetailTab = 'overview' | 'history'
 
 export function CandidateDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const { uid } = useAuth()
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [test, setTest] = useState<TestDoc | null>(null)
+  const [testHistory, setTestHistory] = useState<TestDoc[]>([])
+  const [activeTab, setActiveTab] = useState<DetailTab>('overview')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [isEditingSkills, setIsEditingSkills] = useState(false)
+  const [isSavingSkills, setIsSavingSkills] = useState(false)
+  const [isReanalyzing, setIsReanalyzing] = useState(false)
+  const [isMarkingReviewed, setIsMarkingReviewed] = useState(false)
+  const [isUpdatingPipeline, setIsUpdatingPipeline] = useState(false)
   const [editName, setEditName] = useState('')
   const [editEmail, setEditEmail] = useState('')
   const [editResumeText, setEditResumeText] = useState('')
@@ -33,6 +61,11 @@ export function CandidateDetailPage() {
     return subscribeToTest(candidate.testId, setTest)
   }, [candidate?.testId])
 
+  useEffect(() => {
+    if (!id || !isFirebaseConfigured) return
+    return subscribeToTestsForCandidate(id, setTestHistory)
+  }, [id])
+
   function startEditing() {
     if (!candidate) return
     setEditName(candidate.name)
@@ -47,16 +80,71 @@ export function CandidateDetailPage() {
     setError(null)
   }
 
-  async function handleGenerateTest() {
+  async function handleGenerateTest(categoryCounts?: Record<string, number>) {
     if (!id) return
     setError(null)
     setIsGenerating(true)
     try {
-      await generateTestProfile(id)
+      await generateTestProfile(id, categoryCounts)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong generating the test.')
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  async function handleRetryAnalysis() {
+    if (!id) return
+    setError(null)
+    setIsReanalyzing(true)
+    try {
+      await clearCandidateAnalysisError(id)
+      await analyzeResume(id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong re-analyzing this resume.')
+    } finally {
+      setIsReanalyzing(false)
+    }
+  }
+
+  async function handleSaveSkills(profile: SkillsProfile) {
+    if (!id) return
+    setIsSavingSkills(true)
+    setError(null)
+    try {
+      await updateCandidateSkillsProfile(id, profile)
+      setIsEditingSkills(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong saving skills.')
+    } finally {
+      setIsSavingSkills(false)
+    }
+  }
+
+  async function handleMarkReviewed() {
+    if (!id || !uid) return
+    setIsMarkingReviewed(true)
+    setError(null)
+    try {
+      await markCandidateReviewed(id)
+      await markNotificationsReadForCandidate(uid, id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong marking results as reviewed.')
+    } finally {
+      setIsMarkingReviewed(false)
+    }
+  }
+
+  async function handlePipelineUpdate(status: PipelineStatus, note: string) {
+    if (!id) return
+    setIsUpdatingPipeline(true)
+    setError(null)
+    try {
+      await updateCandidatePipeline(id, status, note)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong updating pipeline status.')
+    } finally {
+      setIsUpdatingPipeline(false)
     }
   }
 
@@ -97,6 +185,17 @@ export function CandidateDetailPage() {
   }
 
   const inviteUrl = test ? `${window.location.origin}/test/${test.id}` : null
+  const resultsNeedReview =
+    candidate.status === 'completed' &&
+    test?.status === 'completed' &&
+    test.completedAt &&
+    (!candidate.reviewedAt || test.completedAt.toMillis() > candidate.reviewedAt.toMillis())
+
+  const inviteExpired =
+    test != null &&
+    test.status !== 'completed' &&
+    test.expiresAt != null &&
+    test.expiresAt.toDate() < new Date()
 
   return (
     <div className="space-y-6">
@@ -112,6 +211,36 @@ export function CandidateDetailPage() {
         <h1 className="text-3xl font-semibold text-white">{candidate.name}</h1>
         <p className="mt-1 text-sm text-slate-400">{candidate.email}</p>
       </div>
+
+      <div className="flex gap-1 border-b border-white/10">
+        {(['overview', 'history'] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            className={`border-b-2 px-4 py-2 text-sm font-medium capitalize transition ${
+              activeTab === tab
+                ? 'border-cyan-300 text-cyan-300'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {tab === 'history' && testHistory.length > 0 ? `History (${testHistory.length})` : tab}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'history' ? (
+        <section className="space-y-4">
+          <p className="text-sm text-slate-400">All test attempts for this candidate, newest first.</p>
+          <TestHistoryPanel tests={testHistory} currentTestId={candidate.testId} />
+        </section>
+      ) : (
+        <>
+      <PipelineActionsPanel
+        candidate={{ ...candidate, pipelineStatus: candidate.pipelineStatus ?? 'active' }}
+        onUpdate={handlePipelineUpdate}
+        isSaving={isUpdatingPipeline}
+      />
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -167,6 +296,7 @@ export function CandidateDetailPage() {
               <label htmlFor="edit-resume" className="text-sm font-medium text-slate-200">
                 Resume text
               </label>
+              <ResumeFileUpload onTextExtracted={setEditResumeText} disabled={isUpdating} />
               <textarea
                 id="edit-resume"
                 required
@@ -203,43 +333,115 @@ export function CandidateDetailPage() {
       </Card>
 
       {candidate.skillsProfile ? (
-        <SkillsProfileCard profile={candidate.skillsProfile} />
+        isEditingSkills ? (
+          <SkillsProfileEditor
+            profile={candidate.skillsProfile}
+            onSave={handleSaveSkills}
+            onCancel={() => setIsEditingSkills(false)}
+            isSaving={isSavingSkills}
+          />
+        ) : (
+          <div className="space-y-3">
+            <SkillsProfileCard profile={candidate.skillsProfile} />
+            {!test && (
+              <button
+                type="button"
+                onClick={() => setIsEditingSkills(true)}
+                className="rounded-full border border-white/20 px-4 py-1.5 text-xs font-medium text-slate-300 transition hover:border-cyan-300/60 hover:text-cyan-200"
+              >
+                Edit skills
+              </button>
+            )}
+          </div>
+        )
+      ) : candidate.analysisError ? (
+        <Card className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-rose-200">Analysis failed</h2>
+            <p className="mt-2 text-sm text-slate-300">{candidate.analysisError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleRetryAnalysis()}
+            disabled={isReanalyzing}
+            className="rounded-full border border-cyan-300 bg-cyan-300 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:opacity-50"
+          >
+            {isReanalyzing ? 'Re-analyzing…' : 'Re-analyze resume'}
+          </button>
+          {error && <p className="text-sm text-rose-300">{error}</p>}
+        </Card>
       ) : (
-        <Card>
+        <Card className="space-y-4">
           <Spinner label="Analyzing resume…" />
+          <button
+            type="button"
+            onClick={() => void handleRetryAnalysis()}
+            disabled={isReanalyzing}
+            className="rounded-full border border-white/20 px-4 py-1.5 text-xs font-medium text-slate-300 transition hover:border-cyan-300/60 hover:text-cyan-200 disabled:opacity-50"
+          >
+            {isReanalyzing ? 'Retrying…' : 'Retry analysis'}
+          </button>
         </Card>
       )}
 
-      {candidate.skillsProfile && !test && (
-        <div className="space-y-3">
-          <button
-            type="button"
-            onClick={handleGenerateTest}
-            disabled={isGenerating}
-            className="rounded-full border border-cyan-300 bg-cyan-300 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isGenerating ? 'Generating test…' : 'Generate test'}
-          </button>
-          {error && <p className="text-sm text-rose-300">{error}</p>}
-        </div>
+      {candidate.skillsProfile && !test && !isEditingSkills && (
+        <TestCustomizationPanel
+          profile={candidate.skillsProfile}
+          onGenerate={handleGenerateTest}
+          isGenerating={isGenerating}
+        />
+      )}
+
+      {error && candidate.skillsProfile && !isEditingSkills && !test && (
+        <p className="text-sm text-rose-300">{error}</p>
       )}
 
       {test && inviteUrl && (
-        <InviteLinkPanel url={inviteUrl} candidateId={id} candidateName={candidate.name} candidateEmail={candidate.email} />
+        <>
+          {inviteExpired ? (
+            <ExpiredInvitePanel test={test} onUpdated={() => undefined} />
+          ) : (
+            <InviteLinkPanel
+              url={inviteUrl}
+              candidateId={id}
+              candidateName={candidate.name}
+              candidateEmail={candidate.email}
+            />
+          )}
+        </>
       )}
 
       {test?.status === 'completed' && test.score && (
         <Card className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-white">Results</h2>
-            <button
-              type="button"
-              onClick={handleGenerateTest}
-              disabled={isGenerating}
-              className="rounded-full border border-white/20 px-4 py-1.5 text-xs font-medium text-slate-300 transition hover:border-cyan-300/60 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isGenerating ? 'Generating…' : 'Re-run test'}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              {resultsNeedReview && (
+                <button
+                  type="button"
+                  onClick={() => void handleMarkReviewed()}
+                  disabled={isMarkingReviewed}
+                  className="rounded-full border border-cyan-300/50 bg-cyan-300/10 px-4 py-1.5 text-xs font-medium text-cyan-200 transition hover:bg-cyan-300/20 disabled:opacity-50"
+                >
+                  {isMarkingReviewed ? 'Saving…' : 'Mark reviewed'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => printAssessmentReport(candidate, test)}
+                className="rounded-full border border-white/20 px-4 py-1.5 text-xs font-medium text-slate-300 transition hover:border-cyan-300/60 hover:text-cyan-200"
+              >
+                Export report
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleGenerateTest()}
+                disabled={isGenerating}
+                className="rounded-full border border-white/20 px-4 py-1.5 text-xs font-medium text-slate-300 transition hover:border-cyan-300/60 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isGenerating ? 'Generating…' : 'Re-run test'}
+              </button>
+            </div>
           </div>
 
           <div>
@@ -250,6 +452,10 @@ export function CandidateDetailPage() {
               </span>
             </p>
           </div>
+
+          {candidate.skillsProfile && (
+            <ResumeTestComparisonPanel profile={candidate.skillsProfile} score={test.score} />
+          )}
 
           <div className="space-y-3">
             {Object.entries(test.score.byCategory).map(([category, breakdown]) => {
@@ -324,6 +530,8 @@ export function CandidateDetailPage() {
             </div>
           )}
         </Card>
+      )}
+        </>
       )}
     </div>
   )

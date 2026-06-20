@@ -175,8 +175,15 @@ function pickFromCategoryPool(
 }
 
 /** Picks a variable-size subset of the question bank weighted by skill level. */
-export function pickQuestionsForProfile(skills: ProfileSkill[]): QuestionBankEntry[] {
-  const totalQuestions = computeTestQuestionCount(skills.length)
+export function pickQuestionsForProfile(
+  skills: ProfileSkill[],
+  categoryCountOverrides?: Partial<Record<QuestionCategory, number>>,
+): QuestionBankEntry[] {
+  const activeCategories = [...new Set(skills.map((skill) => skill.category))]
+  const overrideTotal = categoryCountOverrides
+    ? activeCategories.reduce((sum, category) => sum + Math.max(categoryCountOverrides[category] ?? 0, 0), 0)
+    : 0
+  const totalQuestions = overrideTotal > 0 ? overrideTotal : computeTestQuestionCount(skills.length)
 
   const categoryWeights = Object.fromEntries(CATEGORIES.map((category) => [category, 0])) as Record<
     QuestionCategory,
@@ -189,7 +196,12 @@ export function pickQuestionsForProfile(skills: ProfileSkill[]): QuestionBankEnt
     }
   }
 
-  const categoryAllocations = allocateProportionally(categoryWeights, totalQuestions, CATEGORIES)
+  const categoryAllocations =
+    overrideTotal > 0
+      ? (Object.fromEntries(
+          activeCategories.map((category) => [category, Math.max(categoryCountOverrides?.[category] ?? 0, 0)]),
+        ) as Record<QuestionCategory, number>)
+      : allocateProportionally(categoryWeights, totalQuestions, CATEGORIES)
   const usedIds = new Set<string>()
   const selected: QuestionBankEntry[] = []
 

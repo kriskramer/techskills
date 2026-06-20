@@ -2,6 +2,7 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { Resend } from 'resend'
+import { assertCandidateAccess, requireAuth } from './authHelpers'
 
 const resendApiKey = defineSecret('RESEND_API_KEY')
 
@@ -13,6 +14,8 @@ interface SendInvitationRequest {
 export const sendInvitation = onCall<SendInvitationRequest>(
   { secrets: [resendApiKey] },
   async (request) => {
+    requireAuth(request)
+
     const { candidateId, inviteUrl } = request.data
 
     if (!candidateId || typeof candidateId !== 'string') {
@@ -27,6 +30,8 @@ export const sendInvitation = onCall<SendInvitationRequest>(
     if (!snap.exists) {
       throw new HttpsError('not-found', `Candidate ${candidateId} not found.`)
     }
+
+    assertCandidateAccess(request, snap.data())
 
     const { name, email } = snap.data() as { name: string; email: string }
 

@@ -6,6 +6,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { normalizeSkillsProfile, SkillsProfileOutputSchema } from './schemas/skillsProfile'
 import { buildAssessmentScopeSummary, buildCategoryPromptLines } from './data/assessmentCategories'
 import { enrichSkillsProfile } from './resumeSkillDetection'
+import { assertCandidateAccess, requireAuth } from './authHelpers'
 
 const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY')
 
@@ -16,6 +17,8 @@ interface AnalyzeResumeRequest {
 export const analyzeResume = onCall<AnalyzeResumeRequest>(
   { secrets: [anthropicApiKey] },
   async (request) => {
+    requireAuth(request)
+
     const { candidateId } = request.data
 
     if (!candidateId || typeof candidateId !== 'string') {
@@ -30,6 +33,8 @@ export const analyzeResume = onCall<AnalyzeResumeRequest>(
       throw new HttpsError('not-found', `Candidate ${candidateId} not found.`)
     }
 
+    assertCandidateAccess(request, snapshot.data())
+
     const resumeText = snapshot.data()?.resumeText as string | undefined
     if (!resumeText?.trim()) {
       throw new HttpsError('failed-precondition', 'Candidate has no resume text to analyze.')
@@ -37,6 +42,7 @@ export const analyzeResume = onCall<AnalyzeResumeRequest>(
 
     const client = new Anthropic({ apiKey: anthropicApiKey.value() })
 
+    try {
     const response = await client.messages.parse({
       model: 'claude-opus-4-8',
       max_tokens: 16000,
@@ -76,9 +82,26 @@ ${resumeText}`,
     await candidateRef.update({
       skillsProfile: enrichedProfile,
       status: 'analyzed',
+      analysisError: null,
       updatedAt: FieldValue.serverTimestamp(),
     })
 
     return { skillsProfile: enrichedProfile }
-  },
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Resume analysis failed.'
+
+    if (!(err instanceof HttpsError) || err.code === 'internal') {
+      await candidateRef.update({
+        analysisError: message,
+        updatedAt: FieldValue.serverTimestamp(),
+      })
+    }
+
+    if (err instanceof HttpsError) {
+      throw err
+    }
+
+    throw new HttpsError('internal', message)
+  }
+},
 )

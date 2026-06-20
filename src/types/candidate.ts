@@ -3,6 +3,8 @@ import type { QuestionCategory } from './question'
 
 export type CandidateStatus = 'new' | 'analyzed' | 'invited' | 'completed'
 
+export type PipelineStatus = 'active' | 'advance' | 'hold' | 'archived'
+
 export type SkillLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert'
 
 export interface Skill {
@@ -28,11 +30,20 @@ export interface Candidate {
   recruiterEmail: string
   recruiterCompany: string
   hiringCompany: string
+  createdBy: string
   status: CandidateStatus
   skillsProfile: SkillsProfile | null
   testId: string | null
+  analysisError: string | null
+  reviewedAt: Timestamp | null
+  pipelineStatus?: PipelineStatus
+  pipelineNote?: string | null
+  resumeFileUrl?: string | null
   createdAt: Timestamp | null
   updatedAt: Timestamp | null
 }
 
-export type NewCandidateInput = Pick<Candidate, 'name' | 'email' | 'resumeText' | 'recruiterName' | 'recruiterEmail' | 'recruiterCompany' | 'hiringCompany'>
+export type NewCandidateInput = Pick<
+  Candidate,
+  'name' | 'email' | 'resumeText' | 'recruiterName' | 'recruiterEmail' | 'recruiterCompany' | 'hiringCompany' | 'createdBy'
+>

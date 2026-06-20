@@ -1,16 +1,25 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ResumeFileUpload } from './ResumeFileUpload'
 import { Card } from '../shared/Card'
+import { useAuth } from '../../hooks/useAuth'
 import { isFirebaseConfigured } from '../../lib/firebase'
 import { createCandidate } from '../../services/candidates'
 import { analyzeResume } from '../../services/functions'
 
 export function NewSubmissionPanel() {
   const navigate = useNavigate()
-  const [recruiterName, setRecruiterName] = useState('')
-  const [recruiterEmail, setRecruiterEmail] = useState('')
-  const [recruiterCompany, setRecruiterCompany] = useState('')
+  const { user, profile, uid } = useAuth()
+  const recruiterNameDefault = profile?.displayName ?? user?.displayName ?? ''
+  const recruiterEmailDefault = profile?.email ?? user?.email ?? ''
+  const recruiterCompanyDefault = profile?.defaultCompany ?? ''
+  const [recruiterNameDraft, setRecruiterNameDraft] = useState<string | null>(null)
+  const [recruiterEmailDraft, setRecruiterEmailDraft] = useState<string | null>(null)
+  const [recruiterCompanyDraft, setRecruiterCompanyDraft] = useState<string | null>(null)
+  const recruiterName = recruiterNameDraft ?? recruiterNameDefault
+  const recruiterEmail = recruiterEmailDraft ?? recruiterEmailDefault
+  const recruiterCompany = recruiterCompanyDraft ?? recruiterCompanyDefault
   const [differentHiringCompany, setDifferentHiringCompany] = useState(false)
   const [hiringCompany, setHiringCompany] = useState('')
   const [name, setName] = useState('')
@@ -21,6 +30,11 @@ export function NewSubmissionPanel() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!uid) {
+      setError('Sign in to submit a candidate.')
+      return
+    }
+
     setError(null)
     setIsSubmitting(true)
 
@@ -33,6 +47,7 @@ export function NewSubmissionPanel() {
         recruiterEmail,
         recruiterCompany,
         hiringCompany: differentHiringCompany ? hiringCompany : recruiterCompany,
+        createdBy: uid,
       })
       await analyzeResume(candidateId)
       navigate(`/recruiter/candidates/${candidateId}`)
@@ -43,7 +58,10 @@ export function NewSubmissionPanel() {
   }
 
   return (
-    <Card id="new-submission" className="space-y-5">
+    <Card
+      id="new-submission"
+      className="space-y-5 border-cyan-300/45 bg-cyan-300/[0.07] shadow-lg shadow-cyan-950/40"
+    >
       <div>
         <h2 className="text-lg font-semibold text-white">New submission</h2>
         <p className="mt-1 text-sm text-slate-400">
@@ -63,7 +81,7 @@ export function NewSubmissionPanel() {
               id="recruiter-name"
               required
               value={recruiterName}
-              onChange={(event) => setRecruiterName(event.target.value)}
+              onChange={(event) => setRecruiterNameDraft(event.target.value)}
               className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
             />
           </div>
@@ -77,7 +95,7 @@ export function NewSubmissionPanel() {
               type="email"
               required
               value={recruiterEmail}
-              onChange={(event) => setRecruiterEmail(event.target.value)}
+              onChange={(event) => setRecruiterEmailDraft(event.target.value)}
               placeholder="Results notifications will go here"
               className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300 placeholder:text-slate-600"
             />
@@ -91,7 +109,7 @@ export function NewSubmissionPanel() {
               id="recruiter-company"
               required
               value={recruiterCompany}
-              onChange={(event) => setRecruiterCompany(event.target.value)}
+              onChange={(event) => setRecruiterCompanyDraft(event.target.value)}
               className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
             />
           </div>
@@ -157,6 +175,7 @@ export function NewSubmissionPanel() {
               <label htmlFor="resume" className="text-sm font-medium text-slate-200">
                 Resume text
               </label>
+              <ResumeFileUpload onTextExtracted={setResumeText} disabled={isSubmitting} />
               <textarea
                 id="resume"
                 required

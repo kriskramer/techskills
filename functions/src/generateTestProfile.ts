@@ -4,15 +4,19 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { TIME_LIMIT_BY_DIFFICULTY } from './data/questionBank'
 import type { SkillsProfile } from './schemas/skillsProfile'
 import { pickQuestionsForProfile } from './testQuestionAllocation'
+import { assertCandidateAccess, requireAuth } from './authHelpers'
 
 interface GenerateTestProfileRequest {
   candidateId: string
+  categoryCounts?: Record<string, number>
 }
 
 export const generateTestProfile = onCall<GenerateTestProfileRequest>(
   { invoker: 'public' },
   async (request) => {
-    const { candidateId } = request.data
+    requireAuth(request)
+
+    const { candidateId, categoryCounts } = request.data
 
   if (!candidateId || typeof candidateId !== 'string') {
     throw new HttpsError('invalid-argument', 'candidateId is required.')
@@ -26,6 +30,8 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
     throw new HttpsError('not-found', `Candidate ${candidateId} not found.`)
   }
 
+  assertCandidateAccess(request, snapshot.data())
+
   const candidate = snapshot.data() ?? {}
   const skills = (candidate.skillsProfile?.skills ?? []) as SkillsProfile['skills']
 
@@ -33,7 +39,7 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
     throw new HttpsError('failed-precondition', 'Candidate has not been analyzed yet.')
   }
 
-  const questions = pickQuestionsForProfile(skills)
+  const questions = pickQuestionsForProfile(skills, categoryCounts)
   const answerKey: Record<string, string> = {}
   const testQuestions = questions.map((question) => {
     answerKey[question.id] = question.correctAnswer
@@ -76,6 +82,7 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
   await candidateRef.update({
     testId: token,
     status: 'invited',
+    reviewedAt: null,
     updatedAt: FieldValue.serverTimestamp(),
   })
 
