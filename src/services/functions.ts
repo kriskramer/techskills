@@ -12,11 +12,15 @@ function requireFunctions() {
 
 interface AnalyzeResumeResponse {
   skillsProfile: SkillsProfile
+  cached?: boolean
 }
 
-export async function analyzeResume(candidateId: string): Promise<SkillsProfile> {
-  const callable = httpsCallable<{ candidateId: string }, AnalyzeResumeResponse>(requireFunctions(), 'analyzeResume')
-  const result = await callable({ candidateId })
+export async function analyzeResume(candidateId: string, options?: { force?: boolean }): Promise<SkillsProfile> {
+  const callable = httpsCallable<{ candidateId: string; force?: boolean }, AnalyzeResumeResponse>(
+    requireFunctions(),
+    'analyzeResume',
+  )
+  const result = await callable({ candidateId, force: options?.force })
   return result.data.skillsProfile
 }
 
@@ -28,12 +32,18 @@ export async function generateTestProfile(
   candidateId: string,
   categoryCounts?: Record<string, number>,
   difficulty: TestDifficultyPreset = 'medium',
+  forceRegenerate = false,
 ): Promise<string> {
   const callable = httpsCallable<
-    { candidateId: string; categoryCounts?: Record<string, number>; difficulty?: TestDifficultyPreset },
+    {
+      candidateId: string
+      categoryCounts?: Record<string, number>
+      difficulty?: TestDifficultyPreset
+      forceRegenerate?: boolean
+    },
     GenerateTestProfileResponse
   >(requireFunctions(), 'generateTestProfile')
-  const result = await callable({ candidateId, categoryCounts, difficulty })
+  const result = await callable({ candidateId, categoryCounts, difficulty, forceRegenerate })
   return result.data.token
 }
 

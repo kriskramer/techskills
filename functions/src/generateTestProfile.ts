@@ -11,6 +11,18 @@ interface GenerateTestProfileRequest {
   candidateId: string
   categoryCounts?: Record<string, number>
   difficulty?: TestDifficultyPreset
+  forceRegenerate?: boolean
+}
+
+function isActiveTest(data: FirebaseFirestore.DocumentData): boolean {
+  if (data.status !== 'pending' && data.status !== 'in-progress') {
+    return false
+  }
+  const expiresAt = data.expiresAt as Timestamp | undefined
+  if (expiresAt && expiresAt.toDate() < new Date()) {
+    return false
+  }
+  return true
 }
 
 export const generateTestProfile = onCall<GenerateTestProfileRequest>(
@@ -18,7 +30,7 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
   async (request) => {
     requireAuth(request)
 
-    const { candidateId, categoryCounts, difficulty: difficultyInput } = request.data
+    const { candidateId, categoryCounts, difficulty: difficultyInput, forceRegenerate = false } = request.data
 
   if (!candidateId || typeof candidateId !== 'string') {
     throw new HttpsError('invalid-argument', 'candidateId is required.')
@@ -39,6 +51,17 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
 
   if (skills.length === 0) {
     throw new HttpsError('failed-precondition', 'Candidate has not been analyzed yet.')
+  }
+
+  const existingTestId = candidate.testId as string | null | undefined
+  if (!forceRegenerate && existingTestId) {
+    const existingTestSnap = await db.collection('tests').doc(existingTestId).get()
+    if (existingTestSnap.exists && isActiveTest(existingTestSnap.data()!)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'An active test already exists for this candidate. Cancel it or confirm regeneration.',
+      )
+    }
   }
 
   const difficulty = parseTestDifficultyPreset(difficultyInput)

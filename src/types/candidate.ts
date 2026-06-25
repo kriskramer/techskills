@@ -33,6 +33,7 @@ export interface Candidate {
   createdBy: string
   status: CandidateStatus
   skillsProfile: SkillsProfile | null
+  resumeTextHash?: string | null
   testId: string | null
   analysisError: string | null
   reviewedAt: Timestamp | null

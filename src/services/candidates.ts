@@ -14,6 +14,7 @@ import { db } from '../lib/firebase'
 import type { Candidate, NewCandidateInput, PipelineStatus, SkillsProfile } from '../types/candidate'
 
 export type UpdateCandidateInput = Pick<Candidate, 'name' | 'email' | 'resumeText'>
+export type UpdateCandidateMetadataInput = Pick<Candidate, 'name' | 'email'>
 
 const COLLECTION = 'candidates'
 
@@ -53,9 +54,21 @@ export async function updateCandidateProfile(id: string, input: UpdateCandidateI
   await updateDoc(doc(firestore, COLLECTION, id), {
     ...input,
     skillsProfile: null,
+    resumeTextHash: null,
     status: 'new',
     analysisError: null,
     reviewedAt: null,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function updateCandidateProfileMetadata(
+  id: string,
+  input: UpdateCandidateMetadataInput,
+): Promise<void> {
+  const firestore = requireDb()
+  await updateDoc(doc(firestore, COLLECTION, id), {
+    ...input,
     updatedAt: serverTimestamp(),
   })
 }

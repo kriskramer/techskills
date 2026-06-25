@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { QuestionCard } from '../../components/candidate/QuestionCard'
 import { TestTimer } from '../../components/candidate/TestTimer'
 import { Spinner } from '../../components/shared/Spinner'
 import { isFirebaseConfigured } from '../../lib/firebase'
-import { getTest, saveAnswer, submitTest } from '../../services/tests'
+import { getTest, saveAnswers, submitTest } from '../../services/tests'
 import type { TestDoc } from '../../types/test'
+
+const ANSWER_FLUSH_INTERVAL = 4
 
 export function TestRunnerPage() {
   const { token } = useParams<{ token: string }>()
@@ -14,6 +16,21 @@ export function TestRunnerPage() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const pendingAnswersRef = useRef<Record<string, string>>({})
+  const answersSinceFlushRef = useRef(0)
+
+  const flushPendingAnswers = useCallback(async () => {
+    if (!token) return
+    const pending = pendingAnswersRef.current
+    if (Object.keys(pending).length === 0) return
+    try {
+      await saveAnswers(token, pending)
+      pendingAnswersRef.current = {}
+      answersSinceFlushRef.current = 0
+    } catch {
+      // Continue even if the batch save fails
+    }
+  }, [token])
 
   useEffect(() => {
     if (!token || !isFirebaseConfigured) return
@@ -30,7 +47,6 @@ export function TestRunnerPage() {
       }
       setTest(result)
 
-      // Resume from saved answers
       const savedAnswers = result.answers ?? {}
       setAnswers(savedAnswers)
       const firstUnanswered = result.questions.findIndex((q) => !savedAnswers[q.id])
@@ -45,15 +61,17 @@ export function TestRunnerPage() {
     async (questionId: string, answer: string) => {
       if (!token || !test || isSubmitting) return
 
-      try {
-        await saveAnswer(token, questionId, answer)
-      } catch {
-        // Continue even if the individual save fails
+      const nextAnswers = { ...answers, [questionId]: answer }
+      setAnswers(nextAnswers)
+      pendingAnswersRef.current[questionId] = answer
+      answersSinceFlushRef.current += 1
+
+      const isLastQuestion = currentIndex + 1 >= test.questions.length
+      if (isLastQuestion || answersSinceFlushRef.current >= ANSWER_FLUSH_INTERVAL) {
+        await flushPendingAnswers()
       }
 
-      setAnswers((prev) => ({ ...prev, [questionId]: answer }))
-
-      if (currentIndex + 1 >= test.questions.length) {
+      if (isLastQuestion) {
         setIsSubmitting(true)
         try {
           await submitTest(token)
@@ -65,7 +83,7 @@ export function TestRunnerPage() {
         setCurrentIndex((i) => i + 1)
       }
     },
-    [token, test, currentIndex, isSubmitting, navigate],
+    [token, test, currentIndex, isSubmitting, navigate, answers, flushPendingAnswers],
   )
 
   if (!isFirebaseConfigured) {
@@ -116,4 +134,3 @@ export function TestRunnerPage() {
     </div>
   )
 }
-

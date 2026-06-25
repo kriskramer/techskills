@@ -19,6 +19,7 @@ import {
   subscribeToCandidate,
   updateCandidatePipeline,
   updateCandidateProfile,
+  updateCandidateProfileMetadata,
   updateCandidateSkillsProfile,
 } from '../../services/candidates'
 import type { TestDifficultyPreset } from '../../lib/testDifficulty'
@@ -92,10 +93,25 @@ export function CandidateDetailPage() {
     difficulty: TestDifficultyPreset = 'medium',
   ) {
     if (!id) return
+
+    const hasActiveTest =
+      test != null &&
+      (test.status === 'pending' || test.status === 'in-progress') &&
+      (test.expiresAt == null || test.expiresAt.toDate() >= new Date())
+
+    let forceRegenerate = false
+    if (hasActiveTest) {
+      const confirmed = window.confirm(
+        'This candidate already has an active test invite. Generate a new test anyway? The current invite will remain in history but will no longer be the primary test.',
+      )
+      if (!confirmed) return
+      forceRegenerate = true
+    }
+
     setError(null)
     setIsGenerating(true)
     try {
-      await generateTestProfile(id, categoryCounts, difficulty)
+      await generateTestProfile(id, categoryCounts, difficulty, forceRegenerate)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong generating the test.')
     } finally {
@@ -109,7 +125,7 @@ export function CandidateDetailPage() {
     setIsReanalyzing(true)
     try {
       await clearCandidateAnalysisError(id)
-      await analyzeResume(id)
+      await analyzeResume(id, { force: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong re-analyzing this resume.')
     } finally {
@@ -159,16 +175,24 @@ export function CandidateDetailPage() {
   }
 
   async function handleUpdateProfile() {
-    if (!id) return
+    if (!id || !candidate) return
     setError(null)
     setIsUpdating(true)
     try {
-      await updateCandidateProfile(id, {
-        name: editName,
-        email: editEmail,
-        resumeText: editResumeText,
-      })
-      await analyzeResume(id)
+      const resumeChanged = editResumeText !== candidate.resumeText
+      if (resumeChanged) {
+        await updateCandidateProfile(id, {
+          name: editName,
+          email: editEmail,
+          resumeText: editResumeText,
+        })
+        await analyzeResume(id)
+      } else {
+        await updateCandidateProfileMetadata(id, {
+          name: editName,
+          email: editEmail,
+        })
+      }
       setIsEditing(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong updating this profile.')
@@ -438,6 +462,9 @@ export function CandidateDetailPage() {
               candidateId={id}
               candidateName={candidate.name}
               candidateEmail={candidate.email}
+              recruiterName={candidate.recruiterName}
+              recruiterCompany={candidate.recruiterCompany}
+              hiringCompany={candidate.hiringCompany}
             />
           )}
         </>

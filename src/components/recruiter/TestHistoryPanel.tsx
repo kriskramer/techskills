@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useInviteCooldown } from '../../hooks/useInviteCooldown'
 import { cancelTest, extendTestInvite, sendInvitation } from '../../services/functions'
 import type { TestDoc } from '../../types/test'
 import { Card } from '../shared/Card'
@@ -28,6 +29,41 @@ function isActiveCurrentTest(test: TestDoc, currentTestId: string | null): boole
   return test.id === currentTestId && !isTestExpired(test) && (test.status === 'pending' || test.status === 'in-progress')
 }
 
+function ResendInviteButton({
+  test,
+  isWorking,
+  onResend,
+}: {
+  test: TestDoc
+  isWorking: boolean
+  onResend: (test: TestDoc) => Promise<void>
+}) {
+  const { canSend, isOnCooldown, isAtMaxSends, remainingLabel } = useInviteCooldown(
+    test.lastInvitationSentAt,
+    test.invitationSendCount ?? 0,
+  )
+
+  let label = 'Resend invite'
+  if (isWorking) {
+    label = 'Sending…'
+  } else if (isAtMaxSends) {
+    label = 'Send limit reached'
+  } else if (isOnCooldown) {
+    label = `Resend in ${remainingLabel}`
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={isWorking || !canSend}
+      onClick={() => void onResend(test)}
+      className="rounded-full border border-cyan-300/60 px-4 py-1.5 text-xs font-medium text-cyan-200 transition hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {label}
+    </button>
+  )
+}
+
 interface TestHistoryPanelProps {
   tests: TestDoc[]
   currentTestId: string | null
@@ -37,7 +73,6 @@ interface TestHistoryPanelProps {
 export function TestHistoryPanel({ tests, currentTestId, candidateId }: TestHistoryPanelProps) {
   const [workingTestId, setWorkingTestId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [resentTestId, setResentTestId] = useState<string | null>(null)
 
   if (tests.length === 0) {
     return (
@@ -65,8 +100,6 @@ export function TestHistoryPanel({ tests, currentTestId, candidateId }: TestHist
     const inviteUrl = `${window.location.origin}/test/${test.id}`
     try {
       await sendInvitation(candidateId, inviteUrl)
-      setResentTestId(test.id)
-      setTimeout(() => setResentTestId((current) => (current === test.id ? null : current)), 3000)
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Something went wrong sending the invite.')
     } finally {
@@ -141,14 +174,11 @@ export function TestHistoryPanel({ tests, currentTestId, candidateId }: TestHist
                   {isWorking ? 'Working…' : 'Cancel test'}
                 </button>
                 {test.status === 'pending' ? (
-                  <button
-                    type="button"
-                    disabled={isWorking}
-                    onClick={() => void handleResend(test)}
-                    className="rounded-full border border-cyan-300/60 px-4 py-1.5 text-xs font-medium text-cyan-200 transition hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {resentTestId === test.id ? 'Invite sent!' : isWorking ? 'Sending…' : 'Resend invite'}
-                  </button>
+                  <ResendInviteButton
+                    test={test}
+                    isWorking={isWorking}
+                    onResend={handleResend}
+                  />
                 ) : (
                   <button
                     type="button"

@@ -1119,70 +1119,60 @@ git commit -m "docs: update architecture"
 
 ## Cost Analysis
 
-### Firebase Pricing (As of June 2026)
+### External API pricing (June 2026)
 
-| Service | Free Tier | Pricing |
-|---------|-----------|---------|
-| **Authentication** | 50k/month free, then $0.0055/100 | Included in free tier for MVP |
-| **Firestore** | 1GB storage, 50k reads/day, 20k writes/day, 20k deletes/day | $0.06 per 100k reads, $0.18 per 100k writes |
-| **Cloud Storage** | 5GB, 1GB/day downloads | $0.018/GB storage, $0.12/GB download |
-| **Cloud Functions** | 2M invocations/month free, 400k GB-seconds/month | $0.40/M invocations after free tier |
-| **Hosting** | Included | $1/month minimum + bandwidth |
-| **Real-time Database** | 100 concurrent connections, 1GB storage | Usually not needed (use Firestore) |
+| Service | Usage | Typical unit cost |
+|---------|-------|-------------------|
+| **Claude API** (`analyzeResume`) | 1 call per new/changed resume | ~$0.015–0.05 per analysis (Sonnet default; Opus ~3×) |
+| **Resend** (`sendInvitation`, `scoreTest`) | 1–2 emails per completed candidate | Free tier 3k/mo; Pro $20/50k (~$0.0004/email) |
+| **Firestore** | ~9 reads + ~20 writes per completed test (batched answers) | $0.06/100k reads, $0.18/100k writes |
+| **Cloud Functions** | ~5 invocations per candidate flow | 2M invocations/mo free |
+| **Cloud Storage** | Not used in current happy path (base64 extract) | ~$0 |
 
-### Estimated Monthly Costs (At Scale - 1,000+ tests/month)
+**Claude dominates variable cost** (~85–95% of external API spend). Firestore stays within the free tier until roughly 10k+ completed tests/month with batched answer writes.
 
-```
-Scenario: 1,000 assessments/month, 200 candidates
+### Per-candidate cost (happy path)
 
-Firestore:
-- Reads: 50k/month (resume lookups, test data)  = Free tier
-- Writes: 15k/month (answers, results)          = Free tier
-- Storage: 10GB (resumes, results)              = $1.80
-Subtotal: ~$2/month (likely in free tier)
+One resume analyzed, one test generated and completed, one invite email + one recruiter completion email:
 
-Cloud Storage:
-- Resume uploads: 1,000 × 2MB = 2GB/month       = $0.036/month
-- Report downloads: 1,000 × 0.5MB = 0.5GB      = $0.06/month
-Subtotal: ~$0.10/month
+| Component | Est. cost |
+|-----------|-----------|
+| Claude (Sonnet 4.6, ~3k tokens) | ~$0.015–0.02 |
+| Resend (2 emails) | ~$0.001 |
+| Firestore + Functions | ~$0.001 |
+| **Total** | **~$0.02–0.03** |
 
-Cloud Functions:
-- Resume analysis: 1,000 × 2s CPU time = ~2,000 GB-seconds  = $0.80/month
-- Answer validation: 50k × 0.5s = ~25,000 GB-seconds       = $10/month
-- Test generation: 1,000 × 1s = ~1,000 GB-seconds          = $0.40/month
-Subtotal: ~$11.20/month
+With Opus 4.8 instead of Sonnet: add ~$0.02–0.03 per analysis.
 
-Hosting:
-- 1,000 users × average 100MB cdn = $1.20/month
-Subtotal: ~$1.20/month
+### Monthly scaling (no abuse)
 
-TOTAL ESTIMATED: ~$14.50/month
+| Volume | Claude (Sonnet) | Resend | Firebase | Est. total |
+|--------|-----------------|--------|----------|------------|
+| 100/month | ~$2 | Free tier | Free tier | **~$2–3** |
+| 1,000/month | ~$20 | Pro $20 (2k emails) | Free tier | **~$40** |
+| 10,000/month | ~$200 | Pro $20 (20k emails) | Mostly free (~108k writes) | **~$220** |
 
-(Compare to: HackerRank $165/month, Codility $100/month)
-```
+### Abuse scenarios and mitigations (implemented)
 
-### Scaling Costs (10,000 tests/month)
+| Risk | Mitigation |
+|------|------------|
+| Repeated "Resend invite" clicks | Server-side 5-minute cooldown + max 5 sends per test (`sendInvitation`); Resend idempotency key; UI countdown from `lastInvitationSentAt` |
+| Re-analyze on name/email-only edit | `resumeTextHash` cache skip in `analyzeResume`; metadata-only `updateCandidateProfileMetadata` |
+| Per-question Firestore writes | Batch `saveAnswers` every 4 questions + on submit |
+| Duplicate test generation | Server guard + UI confirm when active test exists |
+| Cost visibility | `usageEvents` collection logs Claude token usage and Resend send events |
 
-```
-At 10x scale:
-- Firestore: ~$10/month (approaching paid tier)
-- Cloud Storage: ~$1/month
-- Cloud Functions: ~$100/month (major cost driver)
-- Hosting: ~$12/month
+Token usage and email sends are logged to Firestore `usageEvents` and Cloud Logging for billing review.
 
-TOTAL: ~$123/month
+### Cost optimization strategies
 
-Still cheaper than HackerRank ($165/month) and way cheaper than Codility
-```
+1. **Batch answer writes** — flush every N questions instead of per advance
+2. **Resume hash cache** — skip Claude when resume text unchanged
+3. **Prompt caching** — static analysis instructions cached via Anthropic `cache_control`
+4. **Sonnet default** — `RESUME_ANALYSIS_MODEL` env (override with `claude-opus-4-8` if needed)
+5. **Invite throttling** — cooldown + send cap on test docs
+6. **Index selective fields** — only index fields queried in production rules
 
-### Cost Optimization Strategies
-
-1. **Batch writes** - Combine multiple updates into single transaction
-2. **Index selective fields** - Only index fields you query on
-3. **Pagination** - Don't load all questions at once
-4. **Caching** - Redis-like caching for question bank (but Firebase doesn't have this built-in, would need separate service)
-5. **Archive old data** - Move completed tests to cheaper cold storage
-6. **Optimize function execution** - Keep Cloud Functions fast and efficient
 
 ---
 
@@ -1221,8 +1211,8 @@ Still cheaper than HackerRank ($165/month) and way cheaper than Codility
 - Frontend: React 18 + TypeScript + Tailwind CSS + Vite
 - Backend: Firebase (Firestore, Cloud Functions, Cloud Storage, Auth)
 - Hosting: Firebase Hosting
-- NLP: Google Cloud Natural Language API (called from Cloud Functions)
-- Email: SendGrid (via Firebase Extension or Cloud Function)
+- NLP: Anthropic Claude API (`analyzeResume` — Sonnet 4.6 default, Opus optional)
+- Email: Resend (invitation + completion notifications via Cloud Functions)
 
 **Advantages:**
 ✅ No server management (serverless)
@@ -1238,6 +1228,6 @@ Still cheaper than HackerRank ($165/month) and way cheaper than Codility
 ⚠️ Vendor lock-in to Google Cloud ecosystem
 ⚠️ Cloud Functions have 540-second timeout limit
 ⚠️ Cold starts (though not critical for this use case)
-⚠️ NLP analysis cost (but minimal with 1k tests/month)
+⚠️ Claude API cost dominates at scale (mitigated by hash cache, prompt caching, Sonnet default)
 
 This architecture is optimized for rapid development and can scale from MVP to production with minimal infrastructure changes.

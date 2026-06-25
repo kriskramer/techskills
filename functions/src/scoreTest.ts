@@ -2,6 +2,7 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { Resend } from 'resend'
+import { logResendUsage } from './usageLogging'
 
 const resendApiKey = defineSecret('RESEND_API_KEY')
 
@@ -19,6 +20,11 @@ interface TestQuestion {
   category: string
   prompt: string
   skills?: string[]
+}
+
+interface CandidateNotificationData {
+  createdBy?: string
+  recruiterEmail?: string
 }
 
 export const scoreTest = onCall<ScoreTestRequest>(
@@ -50,6 +56,9 @@ export const scoreTest = onCall<ScoreTestRequest>(
     if (!privateSnap.exists) {
       throw new HttpsError('failed-precondition', 'Answer key not found for this test.')
     }
+
+    const candidateSnap = await db.collection('candidates').doc(candidateId).get()
+    const candidateData = (candidateSnap.data() ?? {}) as CandidateNotificationData
 
     const answerKey = privateSnap.data()!.key as Record<string, string>
     const answers = (testData.answers ?? {}) as Record<string, string>
@@ -96,13 +105,15 @@ export const scoreTest = onCall<ScoreTestRequest>(
       updatedAt: FieldValue.serverTimestamp(),
     })
 
-    await createInAppNotification(db, candidateId, testId, testData.candidateName as string, score)
+    await createInAppNotification(db, candidateId, testId, testData.candidateName as string, score, candidateData)
 
     await sendRecruiterNotification(
       resendApiKey.value(),
       candidateId,
+      testId,
       testData.candidateName as string,
       score,
+      candidateData,
     )
 
     return { score }
@@ -115,9 +126,9 @@ async function createInAppNotification(
   testId: string,
   candidateName: string,
   score: { correct: number; total: number },
+  candidateData: CandidateNotificationData,
 ): Promise<void> {
-  const candidateSnap = await db.collection('candidates').doc(candidateId).get()
-  const createdBy = candidateSnap.data()?.createdBy as string | undefined
+  const createdBy = candidateData.createdBy
   if (!createdBy) return
 
   const pct = score.total > 0 ? Math.round((score.correct / score.total) * 100) : 0
@@ -136,14 +147,12 @@ async function createInAppNotification(
 async function sendRecruiterNotification(
   apiKey: string,
   candidateId: string,
+  testId: string,
   candidateName: string,
   score: { correct: number; total: number; byCategory: Record<string, ScoreBreakdown>; bySkill: Record<string, ScoreBreakdown> },
+  candidateData: CandidateNotificationData,
 ): Promise<void> {
-  const db = getFirestore()
-  const candidateSnap = await db.collection('candidates').doc(candidateId).get()
-  const candidateData = candidateSnap.data()
-  const recruiterEmail =
-    (candidateData?.recruiterEmail as string | undefined)?.trim() || process.env.RECRUITER_EMAIL
+  const recruiterEmail = candidateData.recruiterEmail?.trim() || process.env.RECRUITER_EMAIL
 
   if (!recruiterEmail) {
     console.warn(
@@ -197,5 +206,11 @@ async function sendRecruiterNotification(
     subject: `Assessment complete: ${candidateName}`,
     text: lines.join('\n'),
   })
-}
 
+  await logResendUsage({
+    type: 'resend_test_completed',
+    candidateId,
+    testId,
+    createdBy: candidateData.createdBy,
+  })
+}

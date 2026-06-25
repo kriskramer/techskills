@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { useInviteCooldown } from '../../hooks/useInviteCooldown'
 import { isTestPreviewEnabled } from '../../lib/features'
+import { buildInviteEmailBody } from '../../lib/inviteEmailBody'
 import { sendInvitation } from '../../services/functions'
 import type { TestDoc } from '../../types/test'
 import { Card } from '../shared/Card'
@@ -11,17 +13,39 @@ interface InviteLinkPanelProps {
   candidateId: string
   candidateName: string
   candidateEmail: string
+  recruiterName: string
+  recruiterCompany: string
+  hiringCompany: string
 }
 
-export function InviteLinkPanel({ url, test, candidateId, candidateName, candidateEmail }: InviteLinkPanelProps) {
+export function InviteLinkPanel({
+  url,
+  test,
+  candidateId,
+  candidateName,
+  candidateEmail,
+  recruiterName,
+  recruiterCompany,
+  hiringCompany,
+}: InviteLinkPanelProps) {
   const [copied, setCopied] = useState(false)
-  const [sendState, setSendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [isSending, setIsSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const { canSend, isOnCooldown, isAtMaxSends, remainingLabel, lastSentLabel } = useInviteCooldown(
+    test.lastInvitationSentAt,
+    test.invitationSendCount ?? 0,
+  )
 
   const subject = encodeURIComponent('Your Praxis assessment invite')
   const body = encodeURIComponent(
-    `Hi ${candidateName},\n\nThanks for your time — please complete this short skills assessment:\n\n${url}\n\nEach question is timed, so set aside about 30 minutes in a quiet spot. Good luck!`,
+    buildInviteEmailBody({
+      candidateName,
+      inviteUrl: url,
+      recruiterName,
+      recruiterCompany,
+      hiringCompany,
+    }),
   )
   const mailto = `mailto:${candidateEmail}?subject=${subject}&body=${body}`
 
@@ -32,15 +56,27 @@ export function InviteLinkPanel({ url, test, candidateId, candidateName, candida
   }
 
   async function handleSendEmail() {
-    setSendState('sending')
+    if (!canSend || isSending) return
+    setIsSending(true)
     setSendError(null)
     try {
       await sendInvitation(candidateId, url)
-      setSendState('sent')
     } catch (err) {
       setSendError(err instanceof Error ? err.message : 'Failed to send email.')
-      setSendState('error')
+    } finally {
+      setIsSending(false)
     }
+  }
+
+  let sendButtonLabel = 'Send email to candidate'
+  if (isSending) {
+    sendButtonLabel = 'Sending…'
+  } else if (isAtMaxSends) {
+    sendButtonLabel = 'Send limit reached'
+  } else if (isOnCooldown) {
+    sendButtonLabel = `Resend in ${remainingLabel}`
+  } else if (lastSentLabel) {
+    sendButtonLabel = 'Resend email'
   }
 
   return (
@@ -49,6 +85,14 @@ export function InviteLinkPanel({ url, test, candidateId, candidateName, candida
       <p className="break-all rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-cyan-200">
         {url}
       </p>
+      {lastSentLabel && (
+        <p className="text-sm text-slate-400">
+          Last sent {lastSentLabel}
+          {test.invitationSendCount != null && test.invitationSendCount > 0
+            ? ` · ${test.invitationSendCount} email${test.invitationSendCount === 1 ? '' : 's'} sent`
+            : ''}
+        </p>
+      )}
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
@@ -59,11 +103,11 @@ export function InviteLinkPanel({ url, test, candidateId, candidateName, candida
         </button>
         <button
           type="button"
-          onClick={handleSendEmail}
-          disabled={sendState === 'sending' || sendState === 'sent'}
+          onClick={() => void handleSendEmail()}
+          disabled={!canSend || isSending}
           className="rounded-full border border-cyan-300 bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {sendState === 'sending' ? 'Sending…' : sendState === 'sent' ? 'Email sent!' : 'Send email to candidate'}
+          {sendButtonLabel}
         </button>
         <a
           href={mailto}
@@ -81,11 +125,15 @@ export function InviteLinkPanel({ url, test, candidateId, candidateName, candida
           </button>
         )}
       </div>
-      {sendState === 'error' && sendError && <p className="text-sm text-rose-300">{sendError}</p>}
+      {sendError && <p className="text-sm text-rose-300">{sendError}</p>}
+      {isAtMaxSends && (
+        <p className="text-sm text-amber-200">
+          This test has reached the maximum number of invitation emails. Use copy link or open an email draft instead.
+        </p>
+      )}
       {isTestPreviewEnabled && showPreview && (
         <TestPreviewModal test={test} onClose={() => setShowPreview(false)} />
       )}
     </Card>
   )
 }
-

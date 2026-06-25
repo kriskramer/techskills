@@ -53,10 +53,14 @@ export async function startTest(token: string): Promise<void> {
 }
 
 export async function saveAnswer(token: string, questionId: string, answer: string): Promise<void> {
+  await saveAnswers(token, { [questionId]: answer })
+}
+
+export async function saveAnswers(token: string, answers: Record<string, string>): Promise<void> {
+  if (Object.keys(answers).length === 0) return
   const firestore = requireDb()
-  await updateDoc(doc(firestore, COLLECTION, token), {
-    [`answers.${questionId}`]: answer,
-  })
+  const fields = Object.fromEntries(Object.entries(answers).map(([questionId, value]) => [`answers.${questionId}`, value]))
+  await updateDoc(doc(firestore, COLLECTION, token), fields)
 }
 
 export async function submitTest(token: string): Promise<void> {

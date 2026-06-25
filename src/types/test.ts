@@ -46,4 +46,6 @@ export interface TestDoc {
   score: TestScore | null
   questionBreakdown: QuestionResult[] | null
   createdAt: Timestamp | null
+  lastInvitationSentAt?: Timestamp | null
+  invitationSendCount?: number
 }
