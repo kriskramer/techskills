@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ExpiredInvitePanel } from '../../components/recruiter/ExpiredInvitePanel'
 import { AssessmentSetupPanel } from '../../components/recruiter/AssessmentSetupPanel'
 import { BundleInvitePanel, LegacyInviteLinkPanel } from '../../components/recruiter/BundleInvitePanel'
-import { PersonalityResultsPanel } from '../../components/recruiter/PersonalityResultsPanel'
+import { PersonalityReportPanel } from '../../components/recruiter/PersonalityReportPanel'
 import { PipelineActionsPanel } from '../../components/recruiter/PipelineActionsPanel'
 import { ResumeFileUpload } from '../../components/recruiter/ResumeFileUpload'
 import { ResumeTestComparisonPanel } from '../../components/recruiter/ResumeTestComparisonPanel'
@@ -16,11 +16,14 @@ import { isFirebaseConfigured } from '../../lib/firebase'
 import { printAssessmentReport } from '../../lib/assessmentReport'
 import {
   clearCandidateAnalysisError,
+  logPersonalityReportExported,
   markCandidateReviewed,
+  markPersonalityReviewed,
   subscribeToCandidate,
   updateCandidatePipeline,
   updateCandidateProfile,
   updateCandidateProfileMetadata,
+  updateCandidateRoleArchetype,
   updateCandidateSkillsProfile,
 } from '../../services/candidates'
 import type { TestDifficultyPreset } from '../../lib/testDifficulty'
@@ -32,6 +35,7 @@ import { useAuth } from '../../hooks/useAuth'
 import type { AssessmentBundle } from '../../types/assessmentBundle'
 import type { TestType } from '../../types/assessmentBundle'
 import type { Candidate, PipelineStatus, SkillsProfile } from '../../types/candidate'
+import type { RoleArchetypeId } from '../../types/personality'
 import type { TestDoc } from '../../types/test'
 
 type DetailTab = 'overview' | 'history'
@@ -40,7 +44,7 @@ const RESUME_PREVIEW_LENGTH = 200
 
 export function CandidateDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { uid } = useAuth()
+  const { uid, profile } = useAuth()
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [bundle, setBundle] = useState<AssessmentBundle | null>(null)
   const [test, setTest] = useState<TestDoc | null>(null)
@@ -52,6 +56,7 @@ export function CandidateDetailPage() {
   const [isSavingSkills, setIsSavingSkills] = useState(false)
   const [isReanalyzing, setIsReanalyzing] = useState(false)
   const [isMarkingReviewed, setIsMarkingReviewed] = useState(false)
+  const [isMarkingPersonalityReviewed, setIsMarkingPersonalityReviewed] = useState(false)
   const [isUpdatingPipeline, setIsUpdatingPipeline] = useState(false)
   const [editName, setEditName] = useState('')
   const [editEmail, setEditEmail] = useState('')
@@ -166,6 +171,47 @@ export function CandidateDetailPage() {
     }
   }
 
+  async function handleMarkPersonalityReviewed() {
+    if (!id || !uid) return
+    setIsMarkingPersonalityReviewed(true)
+    setError(null)
+    try {
+      await markPersonalityReviewed(id)
+      await markNotificationsReadForCandidate(uid, id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong marking personality results as reviewed.')
+    } finally {
+      setIsMarkingPersonalityReviewed(false)
+    }
+  }
+
+  async function handleRoleArchetypeChange(roleArchetype: RoleArchetypeId) {
+    if (!id) return
+    setError(null)
+    try {
+      await updateCandidateRoleArchetype(id, roleArchetype)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong saving role context.')
+    }
+  }
+
+  async function handleExportReport(
+    technical: TestDoc | null,
+    personality: TestDoc | null | undefined,
+  ) {
+    if (!candidate || !id) return
+    const roleArchetypeId = candidate.roleArchetype ?? profile?.defaultRoleArchetype ?? 'general'
+    const printed = printAssessmentReport(candidate, technical, personality ?? null, { roleArchetypeId })
+    if (!printed) return
+    if (personality?.personalityScore) {
+      try {
+        await logPersonalityReportExported(id)
+      } catch (err) {
+        console.error('Failed to log personality report export:', err)
+      }
+    }
+  }
+
   async function handleMarkReviewed() {
     if (!id || !uid) return
     setIsMarkingReviewed(true)
@@ -251,11 +297,20 @@ export function CandidateDetailPage() {
     (entry) => entry.testType === 'personality' && entry.status === 'completed' && entry.personalityScore,
   )
 
+  const effectiveRoleArchetype: RoleArchetypeId =
+    candidate.roleArchetype ?? profile?.defaultRoleArchetype ?? 'general'
+
   const resultsNeedReview =
     candidate.status === 'completed' &&
     technicalTest?.status === 'completed' &&
     technicalTest.completedAt &&
     (!candidate.reviewedAt || technicalTest.completedAt.toMillis() > candidate.reviewedAt.toMillis())
+
+  const personalityNeedsReview =
+    personalityTest?.status === 'completed' &&
+    personalityTest.completedAt != null &&
+    (!candidate.personalityReviewedAt ||
+      personalityTest.completedAt.toMillis() > candidate.personalityReviewedAt.toMillis())
 
   const resumeText = candidate.resumeText
   const isResumeTruncated = resumeText.length > RESUME_PREVIEW_LENGTH
@@ -509,10 +564,6 @@ export function CandidateDetailPage() {
         />
       )}
 
-      {personalityTest?.personalityScore && (
-        <PersonalityResultsPanel score={personalityTest.personalityScore} />
-      )}
-
       {technicalTest?.score && (
         <Card className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -530,7 +581,7 @@ export function CandidateDetailPage() {
               )}
               <button
                 type="button"
-                onClick={() => printAssessmentReport(candidate, technicalTest, personalityTest ?? null)}
+                onClick={() => void handleExportReport(technicalTest, personalityTest ?? null)}
                 className="rounded-full border border-white/20 px-4 py-1.5 text-xs font-medium text-slate-300 transition hover:border-cyan-300/60 hover:text-cyan-200"
               >
                 Export report
@@ -635,6 +686,28 @@ export function CandidateDetailPage() {
             </div>
           )}
         </Card>
+      )}
+
+      {personalityTest?.personalityScore && (
+        <>
+          {technicalTest?.score && (
+            <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/5 px-4 py-3 text-sm text-cyan-100/90">
+              Review technical and work-style results together before deciding next steps.
+            </div>
+          )}
+          <PersonalityReportPanel
+            score={personalityTest.personalityScore}
+            mode="recruiter"
+            candidateName={candidate.name}
+            completedAt={personalityTest.completedAt?.toDate() ?? null}
+            roleArchetype={effectiveRoleArchetype}
+            onRoleArchetypeChange={(archetype) => void handleRoleArchetypeChange(archetype)}
+            onExport={() => void handleExportReport(technicalTest ?? null, personalityTest)}
+            onMarkReviewed={() => void handleMarkPersonalityReviewed()}
+            isMarkingReviewed={isMarkingPersonalityReviewed}
+            personalityNeedsReview={personalityNeedsReview}
+          />
+        </>
       )}
         </>
       )}

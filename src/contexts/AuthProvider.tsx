@@ -19,6 +19,7 @@ const DEV_PROFILE: RecruiterProfile = {
   displayName: 'Dev Recruiter',
   photoURL: null,
   defaultCompany: 'Dev Company',
+  defaultRoleArchetype: 'general',
   createdAt: null,
 }
 

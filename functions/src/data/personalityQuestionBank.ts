@@ -206,10 +206,10 @@ export function buildPersonalityScoringKey(
   for (const question of questions) {
     key[question.id] = {
       dimension: question.dimension,
-      facet: question.facet,
       keyed: question.keyed,
-      isValidityItem: question.isValidityItem,
-      consistencyPairId: question.consistencyPairId,
+      ...(question.facet != null ? { facet: question.facet } : {}),
+      ...(question.isValidityItem != null ? { isValidityItem: question.isValidityItem } : {}),
+      ...(question.consistencyPairId != null ? { consistencyPairId: question.consistencyPairId } : {}),
     }
   }
   return key

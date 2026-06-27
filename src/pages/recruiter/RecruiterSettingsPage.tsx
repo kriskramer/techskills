@@ -5,18 +5,22 @@ import { Card } from '../../components/shared/Card'
 import { Spinner } from '../../components/shared/Spinner'
 import { useAuth } from '../../hooks/useAuth'
 import { isFirebaseConfigured } from '../../lib/firebase'
+import { ROLE_ARCHETYPES } from '../../lib/personalityRoleArchetypes'
 import { updateUserProfile } from '../../services/auth'
+import type { RoleArchetypeId } from '../../types/personality'
 
 export function RecruiterSettingsPage() {
   const { user, profile, loading } = useAuth()
   const [displayNameDraft, setDisplayNameDraft] = useState<string | null>(null)
   const [defaultCompanyDraft, setDefaultCompanyDraft] = useState<string | null>(null)
+  const [defaultRoleArchetypeDraft, setDefaultRoleArchetypeDraft] = useState<RoleArchetypeId | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const displayName = displayNameDraft ?? profile?.displayName ?? ''
   const defaultCompany = defaultCompanyDraft ?? profile?.defaultCompany ?? ''
+  const defaultRoleArchetype = defaultRoleArchetypeDraft ?? profile?.defaultRoleArchetype ?? 'general'
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -27,9 +31,10 @@ export function RecruiterSettingsPage() {
     setIsSaving(true)
 
     try {
-      await updateUserProfile(user.uid, { displayName, defaultCompany })
+      await updateUserProfile(user.uid, { displayName, defaultCompany, defaultRoleArchetype })
       setDisplayNameDraft(null)
       setDefaultCompanyDraft(null)
+      setDefaultRoleArchetypeDraft(null)
       setSaved(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong saving your profile.')
@@ -110,6 +115,27 @@ export function RecruiterSettingsPage() {
               placeholder="Used when submitting new candidates"
               className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300 placeholder:text-slate-600"
             />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="settings-role-archetype" className="text-sm font-medium text-slate-200">
+              Default role context
+            </label>
+            <select
+              id="settings-role-archetype"
+              value={defaultRoleArchetype}
+              onChange={(event) => setDefaultRoleArchetypeDraft(event.target.value as RoleArchetypeId)}
+              className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white outline-none focus:border-cyan-300"
+            >
+              {ROLE_ARCHETYPES.map((archetype) => (
+                <option key={archetype.id} value={archetype.id}>
+                  {archetype.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500">
+              Pre-selects role context on personality reports for new candidates until you change it per candidate.
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">

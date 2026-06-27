@@ -58,6 +58,7 @@ export async function ensureUserProfile(user: User): Promise<RecruiterProfile> {
     displayName: user.displayName ?? '',
     photoURL: user.photoURL,
     defaultCompany: '',
+    defaultRoleArchetype: 'general',
     createdAt: null,
   }
 
@@ -74,6 +75,7 @@ export async function updateUserProfile(uid: string, input: UpdateRecruiterProfi
   await updateDoc(doc(firestore, USERS_COLLECTION, uid), {
     displayName: input.displayName,
     defaultCompany: input.defaultCompany,
+    defaultRoleArchetype: input.defaultRoleArchetype ?? 'general',
   })
 }
 

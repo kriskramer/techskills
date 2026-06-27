@@ -1,3 +1,11 @@
+export type RoleArchetypeId =
+  | 'general'
+  | 'ic-deep'
+  | 'tech-lead'
+  | 'sre-ops'
+  | 'startup-general'
+  | 'enterprise-team'
+
 export type HexacoDimension =
   | 'honestyHumility'
   | 'emotionality'

@@ -12,6 +12,7 @@ import {
 import type { QueryDocumentSnapshot, Unsubscribe } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import type { Candidate, NewCandidateInput, PipelineStatus, SkillsProfile } from '../types/candidate'
+import type { RoleArchetypeId } from '../types/personality'
 
 export type UpdateCandidateInput = Pick<Candidate, 'name' | 'email' | 'resumeText'>
 export type UpdateCandidateMetadataInput = Pick<Candidate, 'name' | 'email'>
@@ -95,6 +96,33 @@ export async function markCandidateReviewed(id: string): Promise<void> {
   const firestore = requireDb()
   await updateDoc(doc(firestore, COLLECTION, id), {
     reviewedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function markPersonalityReviewed(id: string): Promise<void> {
+  const firestore = requireDb()
+  await updateDoc(doc(firestore, COLLECTION, id), {
+    personalityReviewedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function updateCandidateRoleArchetype(
+  id: string,
+  roleArchetype: RoleArchetypeId,
+): Promise<void> {
+  const firestore = requireDb()
+  await updateDoc(doc(firestore, COLLECTION, id), {
+    roleArchetype,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function logPersonalityReportExported(id: string): Promise<void> {
+  const firestore = requireDb()
+  await updateDoc(doc(firestore, COLLECTION, id), {
+    personalityReportExportedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
 }

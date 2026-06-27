@@ -8,6 +8,7 @@ import type {
   PersonalityScoringKeyEntry,
 } from './data/personalityQuestionBank'
 import { syncBundleStatus, syncCandidateCompletion } from './testGenerationHelpers'
+import { formatPersonalityCompletionEmail } from './personalityReportCopy'
 import { logResendUsage } from './usageLogging'
 
 const resendApiKey = defineSecret('RESEND_API_KEY')
@@ -226,7 +227,11 @@ async function sendRecruiterNotification(
   personalityScore: {
     dimensions: Record<HexacoDimension, TraitResult>
     motivation: Record<MotivationFacet, TraitResult>
-    validity: { flags: string[] }
+    validity: {
+      socialDesirability: number
+      inconsistency: number
+      flags: string[]
+    }
   },
   candidateData: CandidateNotificationData,
 ): Promise<void> {
@@ -243,40 +248,14 @@ async function sendRecruiterNotification(
   const appUrl = process.env.APP_URL
   const candidateLink = appUrl ? `${appUrl}/recruiter/candidates/${candidateId}` : null
 
-  const dimensionLines = Object.entries(personalityScore.dimensions)
-    .map(([dimension, result]) => `  ${dimension}: ${result.band} (${result.mean.toFixed(2)})`)
-    .join('\n')
-
-  const motivationLines = Object.entries(personalityScore.motivation)
-    .map(([facet, result]) => `  ${facet}: ${result.band} (${result.mean.toFixed(2)})`)
-    .join('\n')
-
-  const lines = [
-    `${candidateName} has completed their work style & personality assessment.`,
-    '',
-    'Trait profile:',
-    dimensionLines,
-    '',
-    'Work motivation:',
-    motivationLines,
-  ]
-
-  if (personalityScore.validity.flags.length > 0) {
-    lines.push('', `Validity flags: ${personalityScore.validity.flags.join(', ')}`)
-  }
-
-  lines.push('', 'Note: Personality results inform interview focus areas; they are not a standalone hiring decision.')
-
-  if (candidateLink) {
-    lines.push('', `View candidate: ${candidateLink}`)
-  }
+  const text = formatPersonalityCompletionEmail(candidateName, personalityScore, candidateLink)
 
   const resend = new Resend(apiKey)
   await resend.emails.send({
     from: fromEmail,
     to: recruiterEmail,
     subject: `Personality assessment complete: ${candidateName}`,
-    text: lines.join('\n'),
+    text,
   })
 
   await logResendUsage({

@@ -1,9 +1,9 @@
 import { formatCategoryLabel } from './categoryLabels'
 import {
-  HEXACO_DIMENSION_LABELS,
-  MOTIVATION_FACET_LABELS,
-  TRAIT_BAND_LABELS,
-} from './personalityLabels'
+  buildPersonalityReportHtml,
+  PERSONALITY_REPORT_STYLES,
+} from './personalityReportHtml'
+import type { RoleArchetypeId } from './personalityRoleArchetypes'
 import type { Candidate } from '../types/candidate'
 import type { TestDoc } from '../types/test'
 import { compareResumeToTest } from './resumeTestComparison'
@@ -16,24 +16,33 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;')
 }
 
+export interface PrintAssessmentReportOptions {
+  roleArchetypeId?: RoleArchetypeId
+}
+
 export function printAssessmentReport(
   candidate: Candidate,
-  test: TestDoc,
+  technicalTest: TestDoc | null,
   personalityTest?: TestDoc | null,
-): void {
-  const hasTechnical = test.score != null && candidate.skillsProfile
+  options?: PrintAssessmentReportOptions,
+): boolean {
+  const hasTechnical = technicalTest?.score != null && candidate.skillsProfile != null
   const hasPersonality = personalityTest?.personalityScore != null
 
-  if (!hasTechnical && !hasPersonality) return
+  if (!hasTechnical && !hasPersonality) return false
+
+  const roleArchetypeId = options?.roleArchetypeId ?? candidate.roleArchetype ?? 'general'
 
   let technicalSection = ''
-  if (hasTechnical && test.score && candidate.skillsProfile) {
+  if (hasTechnical && technicalTest?.score && candidate.skillsProfile) {
     const overallPct =
-      test.score.total > 0 ? Math.round((test.score.correct / test.score.total) * 100) : 0
-    const comparisons = compareResumeToTest(candidate.skillsProfile, test.score)
+      technicalTest.score.total > 0
+        ? Math.round((technicalTest.score.correct / technicalTest.score.total) * 100)
+        : 0
+    const comparisons = compareResumeToTest(candidate.skillsProfile, technicalTest.score)
     const mismatches = comparisons.filter((row) => row.verdict === 'underperform')
 
-    const categoryRows = Object.entries(test.score.byCategory)
+    const categoryRows = Object.entries(technicalTest.score.byCategory)
       .map(
         ([category, breakdown]) =>
           `<tr><td>${escapeHtml(formatCategoryLabel(category))}</td><td>${breakdown.correct}/${breakdown.total}</td><td>${breakdown.total > 0 ? Math.round((breakdown.correct / breakdown.total) * 100) : 0}%</td></tr>`,
@@ -50,7 +59,7 @@ export function printAssessmentReport(
 
     technicalSection = `
   <h2>Technical skills assessment</h2>
-  <p class="score">${overallPct}% overall (${test.score.correct}/${test.score.total} correct)</p>
+  <p class="score">${overallPct}% overall (${technicalTest.score.correct}/${technicalTest.score.total} correct)</p>
   <h2>By category</h2>
   <table>
     <thead><tr><th>Category</th><th>Score</th><th>%</th></tr></thead>
@@ -72,38 +81,15 @@ export function printAssessmentReport(
 
   let personalitySection = ''
   if (hasPersonality && personalityTest?.personalityScore) {
-    const score = personalityTest.personalityScore
-    const dimensionRows = Object.entries(score.dimensions)
-      .map(
-        ([dimension, result]) =>
-          `<tr><td>${escapeHtml(HEXACO_DIMENSION_LABELS[dimension as keyof typeof HEXACO_DIMENSION_LABELS])}</td><td>${TRAIT_BAND_LABELS[result.band]}</td><td>${result.mean.toFixed(2)}</td></tr>`,
-      )
-      .join('')
-    const motivationRows = Object.entries(score.motivation)
-      .map(
-        ([facet, result]) =>
-          `<tr><td>${escapeHtml(MOTIVATION_FACET_LABELS[facet as keyof typeof MOTIVATION_FACET_LABELS])}</td><td>${TRAIT_BAND_LABELS[result.band]}</td><td>${result.mean.toFixed(2)}</td></tr>`,
-      )
-      .join('')
-
-    personalitySection = `
-  <h2>Work style & personality</h2>
-  <p class="meta">Trait bands inform interview focus areas; not a standalone hiring decision.</p>
-  <h3>HEXACO traits</h3>
-  <table>
-    <thead><tr><th>Trait</th><th>Band</th><th>Mean</th></tr></thead>
-    <tbody>${dimensionRows}</tbody>
-  </table>
-  <h3>Work motivation</h3>
-  <table>
-    <thead><tr><th>Facet</th><th>Band</th><th>Mean</th></tr></thead>
-    <tbody>${motivationRows}</tbody>
-  </table>
-  ${
-    score.validity.flags.length > 0
-      ? `<p><strong>Validity flags:</strong> ${escapeHtml(score.validity.flags.join(', '))}</p>`
-      : ''
-  }`
+    const pageBreak = hasTechnical ? '<div class="page-break"></div>' : ''
+    personalitySection =
+      pageBreak +
+      buildPersonalityReportHtml({
+        score: personalityTest.personalityScore,
+        candidateName: candidate.name,
+        completedAt: personalityTest.completedAt?.toDate() ?? null,
+        roleArchetypeId,
+      })
   }
 
   const html = `<!DOCTYPE html>
@@ -121,6 +107,7 @@ export function printAssessmentReport(
     table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 0.9rem; }
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     th { background: #f5f5f5; }
+    ${PERSONALITY_REPORT_STYLES}
   </style>
 </head>
 <body>
@@ -133,7 +120,7 @@ export function printAssessmentReport(
 </html>`
 
   const printWindow = window.open('', '_blank', 'noopener,noreferrer')
-  if (!printWindow) return
+  if (!printWindow) return false
 
   printWindow.document.write(html)
   printWindow.document.close()
@@ -141,4 +128,6 @@ export function printAssessmentReport(
   printWindow.onload = () => {
     printWindow.print()
   }
+
+  return true
 }

@@ -105,10 +105,10 @@ function toClientPersonalityQuestions(questions: PersonalityQuestionBankEntry[])
     id,
     prompt,
     dimension,
-    facet,
     keyed,
-    isValidityItem,
-    consistencyPairId,
+    ...(facet != null ? { facet } : {}),
+    ...(isValidityItem != null ? { isValidityItem } : {}),
+    ...(consistencyPairId != null ? { consistencyPairId } : {}),
   }))
 }
 

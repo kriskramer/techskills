@@ -1,4 +1,5 @@
 import type { Timestamp } from 'firebase/firestore'
+import type { RoleArchetypeId } from './personality'
 import type { QuestionCategory } from './question'
 
 export type CandidateStatus = 'new' | 'analyzed' | 'invited' | 'completed'
@@ -38,6 +39,9 @@ export interface Candidate {
   activeBundleId: string | null
   analysisError: string | null
   reviewedAt: Timestamp | null
+  personalityReviewedAt?: Timestamp | null
+  personalityReportExportedAt?: Timestamp | null
+  roleArchetype?: RoleArchetypeId | null
   pipelineStatus?: PipelineStatus
   pipelineNote?: string | null
   resumeFileUrl?: string | null
