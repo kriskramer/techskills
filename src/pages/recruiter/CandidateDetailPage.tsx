@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ExpiredInvitePanel } from '../../components/recruiter/ExpiredInvitePanel'
-import { InviteLinkPanel } from '../../components/recruiter/InviteLinkPanel'
+import { AssessmentSetupPanel } from '../../components/recruiter/AssessmentSetupPanel'
+import { BundleInvitePanel, LegacyInviteLinkPanel } from '../../components/recruiter/BundleInvitePanel'
+import { PersonalityResultsPanel } from '../../components/recruiter/PersonalityResultsPanel'
 import { PipelineActionsPanel } from '../../components/recruiter/PipelineActionsPanel'
 import { ResumeFileUpload } from '../../components/recruiter/ResumeFileUpload'
 import { ResumeTestComparisonPanel } from '../../components/recruiter/ResumeTestComparisonPanel'
 import { SkillsProfileCard } from '../../components/recruiter/SkillsProfileCard'
 import { SkillsProfileEditor } from '../../components/recruiter/SkillsProfileEditor'
-import { TestCustomizationPanel } from '../../components/recruiter/TestCustomizationPanel'
 import { TestHistoryPanel } from '../../components/recruiter/TestHistoryPanel'
 import { Card } from '../../components/shared/Card'
 import { Spinner } from '../../components/shared/Spinner'
@@ -23,10 +24,13 @@ import {
   updateCandidateSkillsProfile,
 } from '../../services/candidates'
 import type { TestDifficultyPreset } from '../../lib/testDifficulty'
-import { analyzeResume, generateTestProfile } from '../../services/functions'
+import { analyzeResume, generateAssessments } from '../../services/functions'
+import { subscribeToBundle } from '../../services/bundles'
 import { markNotificationsReadForCandidate } from '../../services/notifications'
 import { subscribeToTest, subscribeToTestsForCandidate } from '../../services/tests'
 import { useAuth } from '../../hooks/useAuth'
+import type { AssessmentBundle } from '../../types/assessmentBundle'
+import type { TestType } from '../../types/assessmentBundle'
 import type { Candidate, PipelineStatus, SkillsProfile } from '../../types/candidate'
 import type { TestDoc } from '../../types/test'
 
@@ -38,6 +42,7 @@ export function CandidateDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { uid } = useAuth()
   const [candidate, setCandidate] = useState<Candidate | null>(null)
+  const [bundle, setBundle] = useState<AssessmentBundle | null>(null)
   const [test, setTest] = useState<TestDoc | null>(null)
   const [testHistory, setTestHistory] = useState<TestDoc[]>([])
   const [activeTab, setActiveTab] = useState<DetailTab>('overview')
@@ -65,6 +70,11 @@ export function CandidateDetailPage() {
   }, [id])
 
   useEffect(() => {
+    if (!candidate?.activeBundleId || !isFirebaseConfigured) return
+    return subscribeToBundle(candidate.activeBundleId, setBundle)
+  }, [candidate?.activeBundleId])
+
+  useEffect(() => {
     if (!candidate?.testId || !isFirebaseConfigured) return
     return subscribeToTest(candidate.testId, setTest)
   }, [candidate?.testId])
@@ -73,6 +83,14 @@ export function CandidateDetailPage() {
     if (!id || !isFirebaseConfigured) return
     return subscribeToTestsForCandidate(id, setTestHistory)
   }, [id])
+
+  const activeBundle = candidate?.activeBundleId ? bundle : null
+
+  const bundleTests = useMemo(() => {
+    if (!activeBundle || testHistory.length === 0) return []
+    const testIds = new Set(Object.values(activeBundle.testIds ?? {}))
+    return testHistory.filter((entry) => testIds.has(entry.id))
+  }, [activeBundle, testHistory])
 
   function startEditing() {
     if (!candidate) return
@@ -88,21 +106,22 @@ export function CandidateDetailPage() {
     setError(null)
   }
 
-  async function handleGenerateTest(
+  async function handleGenerateAssessments(
+    testTypes: TestType[],
     categoryCounts?: Record<string, number>,
     difficulty: TestDifficultyPreset = 'medium',
   ) {
     if (!id) return
 
-    const hasActiveTest =
-      test != null &&
-      (test.status === 'pending' || test.status === 'in-progress') &&
-      (test.expiresAt == null || test.expiresAt.toDate() >= new Date())
+    const hasActiveBundle =
+      activeBundle != null &&
+      (activeBundle.status === 'pending' || activeBundle.status === 'in-progress') &&
+      (activeBundle.expiresAt == null || activeBundle.expiresAt.toDate() >= new Date())
 
     let forceRegenerate = false
-    if (hasActiveTest) {
+    if (hasActiveBundle) {
       const confirmed = window.confirm(
-        'This candidate already has an active test invite. Generate a new test anyway? The current invite will remain in history but will no longer be the primary test.',
+        'This candidate already has active assessments. Generate new ones anyway? The current invite will remain in history.',
       )
       if (!confirmed) return
       forceRegenerate = true
@@ -111,9 +130,9 @@ export function CandidateDetailPage() {
     setError(null)
     setIsGenerating(true)
     try {
-      await generateTestProfile(id, categoryCounts, difficulty, forceRegenerate)
+      await generateAssessments(id, testTypes, { categoryCounts, difficulty, forceRegenerate })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong generating the test.')
+      setError(err instanceof Error ? err.message : 'Something went wrong generating assessments.')
     } finally {
       setIsGenerating(false)
     }
@@ -219,17 +238,24 @@ export function CandidateDetailPage() {
   }
 
   const inviteUrl = test ? `${window.location.origin}/test/${test.id}` : null
+  const hasActiveBundle =
+    activeBundle != null &&
+    (activeBundle.status === 'pending' || activeBundle.status === 'in-progress') &&
+    (activeBundle.expiresAt == null || activeBundle.expiresAt.toDate() >= new Date())
+
+  const technicalTest =
+    bundleTests.find(
+      (entry) => entry.testType === 'technical' && entry.status === 'completed' && entry.score,
+    ) ?? (test?.testType === 'technical' && test.score ? test : null)
+  const personalityTest = bundleTests.find(
+    (entry) => entry.testType === 'personality' && entry.status === 'completed' && entry.personalityScore,
+  )
+
   const resultsNeedReview =
     candidate.status === 'completed' &&
-    test?.status === 'completed' &&
-    test.completedAt &&
-    (!candidate.reviewedAt || test.completedAt.toMillis() > candidate.reviewedAt.toMillis())
-
-  const inviteExpired =
-    test != null &&
-    test.status !== 'completed' &&
-    test.expiresAt != null &&
-    test.expiresAt.toDate() < new Date()
+    technicalTest?.status === 'completed' &&
+    technicalTest.completedAt &&
+    (!candidate.reviewedAt || technicalTest.completedAt.toMillis() > candidate.reviewedAt.toMillis())
 
   const resumeText = candidate.resumeText
   const isResumeTruncated = resumeText.length > RESUME_PREVIEW_LENGTH
@@ -398,7 +424,7 @@ export function CandidateDetailPage() {
         ) : (
           <div className="space-y-3">
             <SkillsProfileCard profile={candidate.skillsProfile} />
-            {!test && (
+            {!hasActiveBundle && (
               <button
                 type="button"
                 onClick={() => setIsEditingSkills(true)}
@@ -439,26 +465,26 @@ export function CandidateDetailPage() {
         </Card>
       )}
 
-      {candidate.skillsProfile && !test && !isEditingSkills && (
-        <TestCustomizationPanel
+      {!hasActiveBundle && !isEditingSkills && (
+        <AssessmentSetupPanel
           profile={candidate.skillsProfile}
-          onGenerate={handleGenerateTest}
+          onGenerate={handleGenerateAssessments}
           isGenerating={isGenerating}
         />
       )}
 
-      {error && candidate.skillsProfile && !isEditingSkills && !test && (
+      {error && !hasActiveBundle && !isEditingSkills && (
         <p className="text-sm text-rose-300">{error}</p>
       )}
 
-      {test && inviteUrl && (
+      {hasActiveBundle && activeBundle && bundleTests.length > 0 && (
         <>
-          {inviteExpired ? (
-            <ExpiredInvitePanel test={test} onUpdated={() => undefined} />
+          {activeBundle.expiresAt != null && activeBundle.expiresAt.toDate() < new Date() ? (
+            <ExpiredInvitePanel test={bundleTests[0]!} onUpdated={() => undefined} />
           ) : (
-            <InviteLinkPanel
-              url={inviteUrl}
-              test={test}
+            <BundleInvitePanel
+              bundle={activeBundle}
+              tests={bundleTests}
               candidateId={id}
               candidateName={candidate.name}
               candidateEmail={candidate.email}
@@ -470,10 +496,27 @@ export function CandidateDetailPage() {
         </>
       )}
 
-      {test?.status === 'completed' && test.score && (
+      {!hasActiveBundle && test && inviteUrl && (
+        <LegacyInviteLinkPanel
+          url={inviteUrl}
+          test={test}
+          candidateId={id}
+          candidateName={candidate.name}
+          candidateEmail={candidate.email}
+          recruiterName={candidate.recruiterName}
+          recruiterCompany={candidate.recruiterCompany}
+          hiringCompany={candidate.hiringCompany}
+        />
+      )}
+
+      {personalityTest?.personalityScore && (
+        <PersonalityResultsPanel score={personalityTest.personalityScore} />
+      )}
+
+      {technicalTest?.score && (
         <Card className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-white">Results</h2>
+            <h2 className="text-lg font-semibold text-white">Technical results</h2>
             <div className="flex flex-wrap gap-2">
               {resultsNeedReview && (
                 <button
@@ -487,14 +530,14 @@ export function CandidateDetailPage() {
               )}
               <button
                 type="button"
-                onClick={() => printAssessmentReport(candidate, test)}
+                onClick={() => printAssessmentReport(candidate, technicalTest, personalityTest ?? null)}
                 className="rounded-full border border-white/20 px-4 py-1.5 text-xs font-medium text-slate-300 transition hover:border-cyan-300/60 hover:text-cyan-200"
               >
                 Export report
               </button>
               <button
                 type="button"
-                onClick={() => void handleGenerateTest()}
+                onClick={() => void handleGenerateAssessments(['technical'])}
                 disabled={isGenerating}
                 className="rounded-full border border-white/20 px-4 py-1.5 text-xs font-medium text-slate-300 transition hover:border-cyan-300/60 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -505,19 +548,22 @@ export function CandidateDetailPage() {
 
           <div>
             <p className="text-3xl font-bold text-cyan-300">
-              {test.score.total > 0 ? Math.round((test.score.correct / test.score.total) * 100) : 0}%
+              {technicalTest.score.total > 0
+                ? Math.round((technicalTest.score.correct / technicalTest.score.total) * 100)
+                : 0}
+              %
               <span className="ml-2 text-base font-normal text-slate-400">
-                ({test.score.correct}/{test.score.total} correct)
+                ({technicalTest.score.correct}/{technicalTest.score.total} correct)
               </span>
             </p>
           </div>
 
           {candidate.skillsProfile && (
-            <ResumeTestComparisonPanel profile={candidate.skillsProfile} score={test.score} />
+            <ResumeTestComparisonPanel profile={candidate.skillsProfile} score={technicalTest.score} />
           )}
 
           <div className="space-y-3">
-            {Object.entries(test.score.byCategory).map(([category, breakdown]) => {
+            {Object.entries(technicalTest.score.byCategory).map(([category, breakdown]) => {
               const pct = breakdown.total > 0 ? Math.round((breakdown.correct / breakdown.total) * 100) : 0
               return (
                 <div key={category} className="space-y-1">
@@ -535,10 +581,10 @@ export function CandidateDetailPage() {
             })}
           </div>
 
-          {test.score.bySkill && Object.keys(test.score.bySkill).length > 0 && (
+          {technicalTest.score.bySkill && Object.keys(technicalTest.score.bySkill).length > 0 && (
             <div className="space-y-3">
               <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-400">By skill</h3>
-              {Object.entries(test.score.bySkill)
+              {Object.entries(technicalTest.score.bySkill)
                 .sort((a, b) => b[1].total - a[1].total)
                 .map(([skill, breakdown]) => {
                   const pct = breakdown.total > 0 ? Math.round((breakdown.correct / breakdown.total) * 100) : 0
@@ -559,10 +605,10 @@ export function CandidateDetailPage() {
             </div>
           )}
 
-          {test.questionBreakdown && test.questionBreakdown.length > 0 && (
+          {technicalTest.questionBreakdown && technicalTest.questionBreakdown.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Per-question breakdown</h3>
-              {test.questionBreakdown.map((result, i) => (
+              {technicalTest.questionBreakdown.map((result, i) => (
                 <div
                   key={result.questionId}
                   className={`rounded-xl border px-4 py-3 text-sm ${

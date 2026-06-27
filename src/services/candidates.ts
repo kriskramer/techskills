@@ -20,7 +20,14 @@ const COLLECTION = 'candidates'
 
 function mapCandidates(docs: QueryDocumentSnapshot[]): Candidate[] {
   return docs
-    .map((document) => ({ id: document.id, ...(document.data() as Omit<Candidate, 'id'>) }))
+    .map((document) => {
+      const data = document.data() as Omit<Candidate, 'id'>
+      return {
+        id: document.id,
+        ...data,
+        activeBundleId: data.activeBundleId ?? null,
+      }
+    })
     .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0))
 }
 
@@ -38,6 +45,7 @@ export async function createCandidate(input: NewCandidateInput): Promise<string>
     status: 'new',
     skillsProfile: null,
     testId: null,
+    activeBundleId: null,
     analysisError: null,
     reviewedAt: null,
     pipelineStatus: 'active',

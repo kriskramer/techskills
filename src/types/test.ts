@@ -1,4 +1,6 @@
 import type { Timestamp } from 'firebase/firestore'
+import type { TestType } from './assessmentBundle'
+import type { PersonalityQuestion, PersonalityScore } from './personality'
 import type { QuestionCategory, QuestionDifficulty, LegacyQuestionDifficulty, QuestionType } from './question'
 
 export type TestStatus = 'pending' | 'in-progress' | 'completed' | 'expired'
@@ -36,7 +38,10 @@ export interface TestDoc {
   id: string
   candidateId: string
   candidateName: string
+  testType: TestType
+  bundleId?: string | null
   questions: TestQuestion[]
+  personalityQuestions?: PersonalityQuestion[]
   durationMinutes: number
   status: TestStatus
   startedAt: Timestamp | null
@@ -44,6 +49,7 @@ export interface TestDoc {
   expiresAt: Timestamp | null
   answers: Record<string, string>
   score: TestScore | null
+  personalityScore?: PersonalityScore | null
   questionBreakdown: QuestionResult[] | null
   createdAt: Timestamp | null
   lastInvitationSentAt?: Timestamp | null

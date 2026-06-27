@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { PersonalityRunner } from '../../components/candidate/personality/PersonalityRunner'
 import { QuestionCard } from '../../components/candidate/QuestionCard'
 import { TestTimer } from '../../components/candidate/TestTimer'
 import { Spinner } from '../../components/shared/Spinner'
@@ -9,18 +10,17 @@ import type { TestDoc } from '../../types/test'
 
 const ANSWER_FLUSH_INTERVAL = 4
 
-export function TestRunnerPage() {
-  const { token } = useParams<{ token: string }>()
+function TechnicalRunner({ test, token }: { test: TestDoc; token: string }) {
   const navigate = useNavigate()
-  const [test, setTest] = useState<TestDoc | null | undefined>(undefined)
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const savedAnswers = test.answers ?? {}
+  const initialIndex = test.questions.findIndex((q) => !savedAnswers[q.id])
+  const [currentIndex, setCurrentIndex] = useState(initialIndex >= 0 ? initialIndex : 0)
+  const [answers, setAnswers] = useState<Record<string, string>>(() => test.answers ?? {})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const pendingAnswersRef = useRef<Record<string, string>>({})
   const answersSinceFlushRef = useRef(0)
 
   const flushPendingAnswers = useCallback(async () => {
-    if (!token) return
     const pending = pendingAnswersRef.current
     if (Object.keys(pending).length === 0) return
     try {
@@ -32,34 +32,9 @@ export function TestRunnerPage() {
     }
   }, [token])
 
-  useEffect(() => {
-    if (!token || !isFirebaseConfigured) return
-    let active = true
-    void getTest(token).then((result) => {
-      if (!active) return
-      if (!result || result.status === 'pending') {
-        navigate(`/test/${token}`, { replace: true })
-        return
-      }
-      if (result.status === 'completed') {
-        navigate(`/test/${token}/results`, { replace: true })
-        return
-      }
-      setTest(result)
-
-      const savedAnswers = result.answers ?? {}
-      setAnswers(savedAnswers)
-      const firstUnanswered = result.questions.findIndex((q) => !savedAnswers[q.id])
-      setCurrentIndex(firstUnanswered >= 0 ? firstUnanswered : 0)
-    })
-    return () => {
-      active = false
-    }
-  }, [token, navigate])
-
   const handleAdvance = useCallback(
     async (questionId: string, answer: string) => {
-      if (!token || !test || isSubmitting) return
+      if (isSubmitting) return
 
       const nextAnswers = { ...answers, [questionId]: answer }
       setAnswers(nextAnswers)
@@ -74,7 +49,7 @@ export function TestRunnerPage() {
       if (isLastQuestion) {
         setIsSubmitting(true)
         try {
-          await submitTest(token)
+          await submitTest(token, 'technical')
           navigate(`/test/${token}/results`)
         } catch {
           setIsSubmitting(false)
@@ -86,19 +61,11 @@ export function TestRunnerPage() {
     [token, test, currentIndex, isSubmitting, navigate, answers, flushPendingAnswers],
   )
 
-  if (!isFirebaseConfigured) {
-    return (
-      <p className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
-        This assessment link isn't ready yet — Firebase isn't configured.
-      </p>
-    )
-  }
-
-  if (!test) {
+  const question = test.questions[currentIndex]
+  if (!question) {
     return <Spinner label="Loading your assessment…" />
   }
 
-  const question = test.questions[currentIndex]
   const currentAnswer = answers[question.id] ?? ''
   const isLastQuestion = currentIndex + 1 === test.questions.length
 
@@ -133,4 +100,52 @@ export function TestRunnerPage() {
       </div>
     </div>
   )
+}
+
+export function TestRunnerPage() {
+  const { token } = useParams<{ token: string }>()
+  const navigate = useNavigate()
+  const [test, setTest] = useState<TestDoc | null | undefined>(undefined)
+
+  useEffect(() => {
+    if (!token || !isFirebaseConfigured) return
+    let active = true
+    void getTest(token).then((result) => {
+      if (!active) return
+      if (!result || result.status === 'pending') {
+        navigate(`/test/${token}`, { replace: true })
+        return
+      }
+      if (result.status === 'completed') {
+        navigate(`/test/${token}/results`, { replace: true })
+        return
+      }
+      setTest(result)
+    })
+    return () => {
+      active = false
+    }
+  }, [token, navigate])
+
+  if (!isFirebaseConfigured) {
+    return (
+      <p className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+        This assessment link isn't ready yet — Firebase isn't configured.
+      </p>
+    )
+  }
+
+  if (test === undefined) {
+    return <Spinner label="Loading your assessment…" />
+  }
+
+  if (!test || !token) {
+    return <Spinner label="Loading your assessment…" />
+  }
+
+  if (test.testType === 'personality') {
+    return <PersonalityRunner key={token} test={test} token={token} />
+  }
+
+  return <TechnicalRunner key={token} test={test} token={token} />
 }

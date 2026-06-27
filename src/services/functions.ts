@@ -1,5 +1,6 @@
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '../lib/firebase'
+import type { TestType } from '../types/assessmentBundle'
 import type { SkillsProfile } from '../types/candidate'
 import type { TestDifficultyPreset } from '../lib/testDifficulty'
 
@@ -22,6 +23,41 @@ export async function analyzeResume(candidateId: string, options?: { force?: boo
   )
   const result = await callable({ candidateId, force: options?.force })
   return result.data.skillsProfile
+}
+
+interface GenerateAssessmentsResponse {
+  bundleId: string
+  testIds: Partial<Record<TestType, string>>
+  primaryTestId: string | null
+}
+
+export async function generateAssessments(
+  candidateId: string,
+  testTypes: TestType[],
+  options?: {
+    categoryCounts?: Record<string, number>
+    difficulty?: TestDifficultyPreset
+    forceRegenerate?: boolean
+  },
+): Promise<GenerateAssessmentsResponse> {
+  const callable = httpsCallable<
+    {
+      candidateId: string
+      testTypes: TestType[]
+      categoryCounts?: Record<string, number>
+      difficulty?: TestDifficultyPreset
+      forceRegenerate?: boolean
+    },
+    GenerateAssessmentsResponse
+  >(requireFunctions(), 'generateAssessments')
+  const result = await callable({
+    candidateId,
+    testTypes,
+    categoryCounts: options?.categoryCounts,
+    difficulty: options?.difficulty,
+    forceRegenerate: options?.forceRegenerate,
+  })
+  return result.data
 }
 
 interface GenerateTestProfileResponse {
@@ -59,12 +95,25 @@ export async function sendInvitation(candidateId: string, inviteUrl: string): Pr
   await callable({ candidateId, inviteUrl })
 }
 
+export async function sendAssessmentInvitation(candidateId: string, bundleId: string, appOrigin: string): Promise<void> {
+  const callable = httpsCallable<
+    { candidateId: string; bundleId: string; appOrigin: string },
+    SendInvitationResponse
+  >(requireFunctions(), 'sendAssessmentInvitation')
+  await callable({ candidateId, bundleId, appOrigin })
+}
+
 interface ScoreTestResponse {
   score: object
 }
 
 export async function scoreTest(testId: string): Promise<void> {
   const callable = httpsCallable<{ testId: string }, ScoreTestResponse>(requireFunctions(), 'scoreTest')
+  await callable({ testId })
+}
+
+export async function scorePersonalityTest(testId: string): Promise<void> {
+  const callable = httpsCallable<{ testId: string }, ScoreTestResponse>(requireFunctions(), 'scorePersonalityTest')
   await callable({ testId })
 }
 

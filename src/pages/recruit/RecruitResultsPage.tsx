@@ -5,9 +5,14 @@ import { SkillsProfileCard } from '../../components/recruiter/SkillsProfileCard'
 import { Card } from '../../components/shared/Card'
 import { Spinner } from '../../components/shared/Spinner'
 import { isFirebaseConfigured } from '../../lib/firebase'
+import {
+  HEXACO_DIMENSION_LABELS,
+  TRAIT_BAND_LABELS,
+} from '../../lib/personalityLabels'
 import { getStoredRecruitEmail, setStoredRecruitEmail } from '../../lib/recruitSession'
 import { subscribeToCandidatesByEmail } from '../../services/candidates'
 import { subscribeToTestsForCandidate } from '../../services/tests'
+import { TEST_TYPE_LABELS } from '../../types/assessmentBundle'
 import type { Candidate } from '../../types/candidate'
 import type { TestDoc, TestScore } from '../../types/test'
 
@@ -43,6 +48,18 @@ function testActionLabel(test: TestDoc): string {
   return 'Start assessment'
 }
 
+function questionCount(test: TestDoc): number {
+  if (test.testType === 'personality') {
+    return test.personalityQuestions?.length ?? 0
+  }
+  return test.questions.length
+}
+
+function testMetaLine(test: TestDoc): string {
+  const timed = test.testType === 'technical' ? ' · timed' : ' · untimed'
+  return `${questionCount(test)} questions · ~${test.durationMinutes} min${timed}`
+}
+
 interface TestWithContext extends TestDoc {
   hiringCompany: string
 }
@@ -55,14 +72,26 @@ function TestRow({ test }: { test: TestWithContext }) {
   return (
     <Card className="flex flex-wrap items-center justify-between gap-4">
       <div className="min-w-0 space-y-1">
-        <p className="font-medium text-white">{test.hiringCompany}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-medium text-white">{TEST_TYPE_LABELS[test.testType]}</p>
+          <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">
+            {test.hiringCompany}
+          </span>
+        </div>
         <p className="text-sm text-slate-400">
-          {test.questions.length} questions · {test.durationMinutes} min
+          {testMetaLine(test)}
           {dateLabel && <span className="text-slate-500"> · {dateLabel}</span>}
         </p>
-        {test.status === 'completed' && test.score && (
+        {test.status === 'completed' && test.testType === 'technical' && test.score && (
           <p className="text-sm text-cyan-300">
             {scorePercent(test.score)}% ({test.score.correct}/{test.score.total} correct)
+          </p>
+        )}
+        {test.status === 'completed' && test.testType === 'personality' && test.personalityScore && (
+          <p className="text-sm text-cyan-300">
+            Conscientiousness: {TRAIT_BAND_LABELS[test.personalityScore.dimensions.conscientiousness.band]} ·{' '}
+            {HEXACO_DIMENSION_LABELS.honestyHumility}:{' '}
+            {TRAIT_BAND_LABELS[test.personalityScore.dimensions.honestyHumility.band]}
           </p>
         )}
       </div>
@@ -90,6 +119,35 @@ function TestRow({ test }: { test: TestWithContext }) {
         ) : null}
       </div>
     </Card>
+  )
+}
+
+interface BundleGroup {
+  bundleId: string | null
+  tests: TestWithContext[]
+  completedCount: number
+}
+
+function BundleGroupSection({ group }: { group: BundleGroup }) {
+  const activeTests = group.tests.filter(
+    (test) => (test.status === 'pending' || test.status === 'in-progress') && !isTestExpired(test),
+  )
+
+  if (activeTests.length === 0) return null
+
+  return (
+    <div className="space-y-2 rounded-2xl border border-white/10 bg-slate-950/30 p-4">
+      {group.bundleId && group.tests.length > 1 && (
+        <p className="text-xs text-slate-500">
+          Assessment bundle · {group.completedCount} of {group.tests.length} complete
+        </p>
+      )}
+      <div className="space-y-3">
+        {activeTests.map((test) => (
+          <TestRow key={test.id} test={test} />
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -147,7 +205,27 @@ export function RecruitResultsPage() {
     (test) => (test.status === 'pending' || test.status === 'in-progress') && !isTestExpired(test),
   )
 
-  const previousResults = allTests.filter((test) => test.status === 'completed' && test.score)
+  const bundleGroups = useMemo((): BundleGroup[] => {
+    const groups = new Map<string, TestWithContext[]>()
+    for (const test of activeInvites) {
+      const key = test.bundleId ?? `legacy-${test.id}`
+      const list = groups.get(key) ?? []
+      list.push(test)
+      groups.set(key, list)
+    }
+
+    return [...groups.entries()].map(([bundleId, tests]) => ({
+      bundleId: bundleId.startsWith('legacy-') ? null : bundleId,
+      tests,
+      completedCount: tests.filter((test) => test.status === 'completed').length,
+    }))
+  }, [activeInvites])
+
+  const previousResults = allTests.filter(
+    (test) =>
+      test.status === 'completed' &&
+      ((test.testType === 'personality' && test.personalityScore) || (test.testType !== 'personality' && test.score)),
+  )
 
   const skillsProfile = candidates.find((candidate) => candidate.skillsProfile)?.skillsProfile ?? null
 
@@ -173,10 +251,10 @@ export function RecruitResultsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-semibold text-white">Your Results</h1>
+        <h1 className="text-3xl font-semibold text-white">Your assessments</h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-400">
-          View your skills profile, open test invites, and review past assessment results. Use the same email address
-          your recruiter used when they submitted your resume.
+          View your skills profile, open assessment invites, and review past results. Use the same email address your
+          recruiter used when they submitted your resume.
         </p>
       </div>
 
@@ -200,7 +278,7 @@ export function RecruitResultsPage() {
             type="submit"
             className="rounded-full border border-cyan-300 bg-cyan-300 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
           >
-            Load my results
+            Load my assessments
           </button>
         </form>
       </Card>
@@ -240,7 +318,7 @@ export function RecruitResultsPage() {
 
           <section className="space-y-4">
             <div>
-              <h2 className="text-lg font-semibold text-white">Test invites</h2>
+              <h2 className="text-lg font-semibold text-white">Pending assessments</h2>
               <p className="mt-1 text-sm text-slate-400">Active assessments waiting for you to start or finish.</p>
             </div>
             {activeInvites.length === 0 ? (
@@ -248,9 +326,9 @@ export function RecruitResultsPage() {
                 <p className="text-sm text-slate-400">No active invites right now. Check back when a recruiter sends one.</p>
               </Card>
             ) : (
-              <div className="space-y-3">
-                {activeInvites.map((test) => (
-                  <TestRow key={test.id} test={test} />
+              <div className="space-y-4">
+                {bundleGroups.map((group) => (
+                  <BundleGroupSection key={group.bundleId ?? group.tests[0]?.id} group={group} />
                 ))}
               </div>
             )}

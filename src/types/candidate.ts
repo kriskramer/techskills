@@ -35,6 +35,7 @@ export interface Candidate {
   skillsProfile: SkillsProfile | null
   resumeTextHash?: string | null
   testId: string | null
+  activeBundleId: string | null
   analysisError: string | null
   reviewedAt: Timestamp | null
   pipelineStatus?: PipelineStatus

@@ -3,30 +3,55 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import type { SkillsProfile } from './schemas/skillsProfile'
 import { assertCandidateAccess, requireAuth } from './authHelpers'
+import { type TestType } from './data/personalityQuestionBank'
 import {
   buildExpiresAt,
+  createPersonalityTest,
   createTechnicalTest,
   isActiveBundle,
-  isActiveTest,
 } from './testGenerationHelpers'
 import { parseTestDifficultyPreset, type TestDifficultyPreset } from './testDifficulty'
 
-interface GenerateTestProfileRequest {
+interface GenerateAssessmentsRequest {
   candidateId: string
+  testTypes: TestType[]
   categoryCounts?: Record<string, number>
   difficulty?: TestDifficultyPreset
   forceRegenerate?: boolean
 }
 
-export const generateTestProfile = onCall<GenerateTestProfileRequest>(
+const VALID_TEST_TYPES: TestType[] = ['technical', 'personality', 'cognitive']
+
+export const generateAssessments = onCall<GenerateAssessmentsRequest>(
   { invoker: 'public' },
   async (request) => {
     requireAuth(request)
 
-    const { candidateId, categoryCounts, difficulty: difficultyInput, forceRegenerate = false } = request.data
+    const {
+      candidateId,
+      testTypes,
+      categoryCounts,
+      difficulty: difficultyInput,
+      forceRegenerate = false,
+    } = request.data
 
     if (!candidateId || typeof candidateId !== 'string') {
       throw new HttpsError('invalid-argument', 'candidateId is required.')
+    }
+
+    if (!Array.isArray(testTypes) || testTypes.length === 0) {
+      throw new HttpsError('invalid-argument', 'At least one test type is required.')
+    }
+
+    const uniqueTypes = [...new Set(testTypes)]
+    for (const type of uniqueTypes) {
+      if (!VALID_TEST_TYPES.includes(type)) {
+        throw new HttpsError('invalid-argument', `Invalid test type: ${type}`)
+      }
+    }
+
+    if (uniqueTypes.includes('cognitive')) {
+      throw new HttpsError('unimplemented', 'Cognitive assessments are not available yet.')
     }
 
     const db = getFirestore()
@@ -41,8 +66,9 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
 
     const candidate = snapshot.data() ?? {}
     const skills = (candidate.skillsProfile?.skills ?? []) as SkillsProfile['skills']
+    const candidateName = (candidate.name as string | undefined) ?? ''
 
-    if (skills.length === 0) {
+    if (uniqueTypes.includes('technical') && skills.length === 0) {
       throw new HttpsError('failed-precondition', 'Candidate has not been analyzed yet.')
     }
 
@@ -52,18 +78,7 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
       if (existingBundleSnap.exists && isActiveBundle(existingBundleSnap.data()!)) {
         throw new HttpsError(
           'failed-precondition',
-          'An active test already exists for this candidate. Cancel it or confirm regeneration.',
-        )
-      }
-    }
-
-    const existingTestId = candidate.testId as string | null | undefined
-    if (!forceRegenerate && !existingBundleId && existingTestId) {
-      const existingTestSnap = await db.collection('tests').doc(existingTestId).get()
-      if (existingTestSnap.exists && isActiveTest(existingTestSnap.data()!)) {
-        throw new HttpsError(
-          'failed-precondition',
-          'An active test already exists for this candidate. Cancel it or confirm regeneration.',
+          'An active assessment bundle already exists for this candidate. Cancel it or confirm regeneration.',
         )
       }
     }
@@ -71,21 +86,32 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
     const difficulty = parseTestDifficultyPreset(difficultyInput)
     const bundleId = randomUUID()
     const expiresAt = buildExpiresAt()
-    const candidateName = (candidate.name as string | undefined) ?? ''
+    const testIds: Partial<Record<TestType, string>> = {}
+    let primaryTestId: string | null = null
 
-    const { token } = await createTechnicalTest({
-      candidateId,
-      candidateName,
-      skills,
-      bundleId,
-      categoryCounts,
-      difficulty,
-    })
+    if (uniqueTypes.includes('technical')) {
+      const result = await createTechnicalTest({
+        candidateId,
+        candidateName,
+        skills,
+        bundleId,
+        categoryCounts,
+        difficulty,
+      })
+      testIds.technical = result.token
+      primaryTestId = result.token
+    }
+
+    if (uniqueTypes.includes('personality')) {
+      const result = await createPersonalityTest({ candidateId, candidateName, bundleId })
+      testIds.personality = result.token
+      if (!primaryTestId) primaryTestId = result.token
+    }
 
     await db.collection('assessmentBundles').doc(bundleId).set({
       candidateId,
-      testTypes: ['technical'],
-      testIds: { technical: token },
+      testTypes: uniqueTypes,
+      testIds,
       status: 'pending',
       expiresAt,
       createdAt: FieldValue.serverTimestamp(),
@@ -95,12 +121,12 @@ export const generateTestProfile = onCall<GenerateTestProfileRequest>(
 
     await candidateRef.update({
       activeBundleId: bundleId,
-      testId: token,
+      testId: primaryTestId,
       status: 'invited',
       reviewedAt: null,
       updatedAt: FieldValue.serverTimestamp(),
     })
 
-    return { token }
+    return { bundleId, testIds, primaryTestId }
   },
 )

@@ -1,10 +1,31 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Card } from '../../components/shared/Card'
 import { Spinner } from '../../components/shared/Spinner'
 import { isFirebaseConfigured } from '../../lib/firebase'
 import { getTest, startTest } from '../../services/tests'
+import { TEST_TYPE_LABELS } from '../../types/assessmentBundle'
 import type { TestDoc } from '../../types/test'
+
+function questionCount(test: TestDoc): number {
+  if (test.testType === 'personality') {
+    return test.personalityQuestions?.length ?? 0
+  }
+  return test.questions.length
+}
+
+function landingCopy(test: TestDoc): { description: string; buttonLabel: string } {
+  if (test.testType === 'personality') {
+    return {
+      description: `This assessment has ${questionCount(test)} untimed questions about your work style and motivation. You'll answer in batches of 10 — go at your own pace and respond based on how you typically behave at work.`,
+      buttonLabel: 'Start assessment',
+    }
+  }
+  return {
+    description: `This assessment has ${questionCount(test)} questions covering the skills on your resume. Each question is timed — once it expires you'll automatically move to the next one, so go with your gut.`,
+    buttonLabel: 'Start test',
+  }
+}
 
 export function TestLandingPage() {
   const { token } = useParams<{ token: string }>()
@@ -72,22 +93,32 @@ export function TestLandingPage() {
     )
   }
 
+  const copy = landingCopy(test)
+
   return (
     <Card className="space-y-4">
-      <h1 className="text-2xl font-semibold text-white">Hi {test.candidateName}, ready for your assessment?</h1>
-      <p className="text-sm text-slate-300">
-        This assessment has {test.questions.length} questions covering the skills on your resume. Each question is
-        timed — once it expires you'll automatically move to the next one, so go with your gut.
+      <p className="text-xs font-medium uppercase tracking-wide text-cyan-300/80">
+        {TEST_TYPE_LABELS[test.testType]}
       </p>
+      <h1 className="text-2xl font-semibold text-white">Hi {test.candidateName}, ready for your assessment?</h1>
+      <p className="text-sm text-slate-300">{copy.description}</p>
       <p className="text-sm text-slate-400">Estimated time: about {test.durationMinutes} minutes.</p>
-      <button
-        type="button"
-        onClick={handleStart}
-        disabled={isStarting}
-        className="rounded-full border border-cyan-300 bg-cyan-300 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {isStarting ? 'Starting…' : 'Start test'}
-      </button>
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={handleStart}
+          disabled={isStarting}
+          className="rounded-full border border-cyan-300 bg-cyan-300 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isStarting ? 'Starting…' : copy.buttonLabel}
+        </button>
+        <Link
+          to="/recruit/tests"
+          className="rounded-full border border-white/20 px-5 py-2 text-sm font-medium text-slate-200 transition hover:border-cyan-300/60"
+        >
+          View all assessments
+        </Link>
+      </div>
     </Card>
   )
 }

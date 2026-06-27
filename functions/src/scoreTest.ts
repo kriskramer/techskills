@@ -2,6 +2,7 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { Resend } from 'resend'
+import { syncBundleStatus, syncCandidateCompletion } from './testGenerationHelpers'
 import { logResendUsage } from './usageLogging'
 
 const resendApiKey = defineSecret('RESEND_API_KEY')
@@ -48,6 +49,7 @@ export const scoreTest = onCall<ScoreTestRequest>(
 
     const testData = testSnap.data()!
     const candidateId = testData.candidateId as string
+    const bundleId = testData.bundleId as string | null | undefined
 
     if (testData.status === 'completed') {
       return { score: testData.score }
@@ -100,10 +102,11 @@ export const scoreTest = onCall<ScoreTestRequest>(
       questionBreakdown,
     })
 
-    await db.collection('candidates').doc(candidateId).update({
-      status: 'completed',
-      updatedAt: FieldValue.serverTimestamp(),
-    })
+    if (bundleId) {
+      await syncBundleStatus(bundleId)
+    }
+
+    await syncCandidateCompletion(candidateId, bundleId)
 
     await createInAppNotification(db, candidateId, testId, testData.candidateName as string, score, candidateData)
 

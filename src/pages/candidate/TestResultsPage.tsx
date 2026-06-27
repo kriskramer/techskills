@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
+import { PersonalityResultsPanel } from '../../components/recruiter/PersonalityResultsPanel'
 import { Card } from '../../components/shared/Card'
 import { Spinner } from '../../components/shared/Spinner'
 import { isFirebaseConfigured } from '../../lib/firebase'
 import { getTest } from '../../services/tests'
+import { TEST_TYPE_LABELS } from '../../types/assessmentBundle'
 import type { TestDoc } from '../../types/test'
 
 function CategoryBar({ label, correct, total }: { label: string; correct: number; total: number }) {
@@ -23,42 +25,17 @@ function CategoryBar({ label, correct, total }: { label: string; correct: number
   )
 }
 
-export function TestResultsPage() {
-  const { token } = useParams<{ token: string }>()
-  const [test, setTest] = useState<TestDoc | null | undefined>(undefined)
-
-  useEffect(() => {
-    if (!token || !isFirebaseConfigured) return
-    let active = true
-    void getTest(token).then((result) => {
-      if (active) setTest(result)
-    })
-    return () => {
-      active = false
-    }
-  }, [token])
-
-  if (!isFirebaseConfigured) {
-    return (
-      <p className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
-        Results aren't available — Firebase isn't configured.
-      </p>
-    )
-  }
-
-  if (test === undefined) {
-    return <Spinner label="Loading your results…" />
-  }
-
-  if (!test || !test.score) {
-    return <p className="text-sm text-slate-300">We couldn't find results for this assessment yet.</p>
-  }
+function TechnicalResults({ test }: { test: TestDoc }) {
+  if (!test.score) return null
 
   const overallPct = test.score.total > 0 ? Math.round((test.score.correct / test.score.total) * 100) : 0
 
   return (
     <div className="space-y-6">
       <Card className="space-y-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-cyan-300/80">
+          {TEST_TYPE_LABELS.technical}
+        </p>
         <h1 className="text-2xl font-semibold text-white">Thanks, {test.candidateName}!</h1>
         <p className="text-4xl font-bold text-cyan-300">
           {overallPct}%
@@ -127,3 +104,73 @@ export function TestResultsPage() {
   )
 }
 
+function PersonalityResults({ test }: { test: TestDoc }) {
+  if (!test.personalityScore) return null
+
+  return (
+    <div className="space-y-6">
+      <Card className="space-y-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-cyan-300/80">
+          {TEST_TYPE_LABELS.personality}
+        </p>
+        <h1 className="text-2xl font-semibold text-white">Thanks, {test.candidateName}!</h1>
+        <p className="text-sm text-slate-300">
+          Your responses have been submitted. A recruiter will review your work style profile as part of the
+          overall assessment process.
+        </p>
+      </Card>
+      <PersonalityResultsPanel score={test.personalityScore} title="Your work style profile" />
+    </div>
+  )
+}
+
+export function TestResultsPage() {
+  const { token } = useParams<{ token: string }>()
+  const [test, setTest] = useState<TestDoc | null | undefined>(undefined)
+
+  useEffect(() => {
+    if (!token || !isFirebaseConfigured) return
+    let active = true
+    void getTest(token).then((result) => {
+      if (active) setTest(result)
+    })
+    return () => {
+      active = false
+    }
+  }, [token])
+
+  if (!isFirebaseConfigured) {
+    return (
+      <p className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+        Results aren't available — Firebase isn't configured.
+      </p>
+    )
+  }
+
+  if (test === undefined) {
+    return <Spinner label="Loading your results…" />
+  }
+
+  const hasResults =
+    test != null &&
+    ((test.testType === 'personality' && test.personalityScore) || (test.testType !== 'personality' && test.score))
+
+  if (!hasResults) {
+    return <p className="text-sm text-slate-300">We couldn't find results for this assessment yet.</p>
+  }
+
+  return (
+    <div className="space-y-4">
+      {test!.testType === 'personality' ? (
+        <PersonalityResults test={test!} />
+      ) : (
+        <TechnicalResults test={test!} />
+      )}
+      <div className="text-center">
+        <Link to="/recruit/tests" className="text-sm text-cyan-300 transition hover:text-cyan-200">
+          View all your assessments →
+        </Link>
+      </div>
+    </div>
+  )
+}

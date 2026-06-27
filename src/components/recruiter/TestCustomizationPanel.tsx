@@ -21,9 +21,17 @@ interface TestCustomizationPanelProps {
   profile: SkillsProfile
   onGenerate: (categoryCounts: Record<string, number>, difficulty: TestDifficultyPreset) => Promise<void>
   isGenerating: boolean
+  generateLabel?: string
+  disabled?: boolean
 }
 
-export function TestCustomizationPanel({ profile, onGenerate, isGenerating }: TestCustomizationPanelProps) {
+export function TestCustomizationPanel({
+  profile,
+  onGenerate,
+  isGenerating,
+  generateLabel = 'Generate test',
+  disabled = false,
+}: TestCustomizationPanelProps) {
   const categories = useMemo(() => activeCategories(profile), [profile])
   const defaults = useMemo(() => defaultCategoryCounts(profile), [profile])
   const [countsDraft, setCountsDraft] = useState<Partial<Record<QuestionCategory, number>> | null>(null)
@@ -228,11 +236,11 @@ export function TestCustomizationPanel({ profile, onGenerate, isGenerating }: Te
 
       <button
         type="button"
-        disabled={isGenerating || totalQuestions === 0}
+        disabled={disabled || isGenerating || totalQuestions === 0}
         onClick={() => void onGenerate(activeCounts, difficulty)}
         className="rounded-full border border-cyan-300 bg-cyan-300 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isGenerating ? 'Generating test…' : 'Generate test'}
+        {isGenerating ? 'Generating…' : generateLabel}
       </button>
     </Card>
   )

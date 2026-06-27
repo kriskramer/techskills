@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useInviteCooldown } from '../../hooks/useInviteCooldown'
 import { cancelTest, extendTestInvite, sendInvitation } from '../../services/functions'
+import { TEST_TYPE_LABELS } from '../../types/assessmentBundle'
 import type { TestDoc } from '../../types/test'
 import { Card } from '../shared/Card'
 
@@ -134,8 +135,12 @@ export function TestHistoryPanel({ tests, currentTestId, candidateId }: TestHist
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-medium text-white">
-                    {test.questions.length} questions · {test.durationMinutes} min
+                  <p className="font-medium text-white">{TEST_TYPE_LABELS[test.testType]}</p>
+                  <p className="text-sm text-slate-400">
+                    {test.testType === 'personality'
+                      ? (test.personalityQuestions?.length ?? 0)
+                      : test.questions.length}{' '}
+                    questions · {test.durationMinutes} min
                   </p>
                   {isCurrent && (
                     <span className="rounded-full border border-cyan-300/40 bg-cyan-300/10 px-2 py-0.5 text-xs font-medium text-cyan-200">

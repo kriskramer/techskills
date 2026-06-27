@@ -1,14 +1,22 @@
 import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 import type { QueryDocumentSnapshot, Unsubscribe } from 'firebase/firestore'
 import { db } from '../lib/firebase'
-import { scoreTest } from './functions'
+import { scorePersonalityTest, scoreTest } from './functions'
 import type { TestDoc } from '../types/test'
 
 const COLLECTION = 'tests'
 
+function normalizeTestDoc(id: string, data: Omit<TestDoc, 'id'>): TestDoc {
+  return {
+    ...data,
+    id,
+    testType: data.testType ?? 'technical',
+  }
+}
+
 function mapTests(docs: QueryDocumentSnapshot[]): TestDoc[] {
   return docs
-    .map((document) => ({ id: document.id, ...(document.data() as Omit<TestDoc, 'id'>) }))
+    .map((document) => normalizeTestDoc(document.id, document.data() as Omit<TestDoc, 'id'>))
     .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0))
 }
 
@@ -23,7 +31,7 @@ export async function getTest(token: string): Promise<TestDoc | null> {
   const firestore = requireDb()
   const snapshot = await getDoc(doc(firestore, COLLECTION, token))
   if (!snapshot.exists()) return null
-  return { id: snapshot.id, ...(snapshot.data() as Omit<TestDoc, 'id'>) }
+  return normalizeTestDoc(snapshot.id, snapshot.data() as Omit<TestDoc, 'id'>)
 }
 
 export function subscribeToTest(token: string, onChange: (test: TestDoc | null) => void): Unsubscribe {
@@ -35,7 +43,7 @@ export function subscribeToTest(token: string, onChange: (test: TestDoc | null) 
         onChange(null)
         return
       }
-      onChange({ id: snapshot.id, ...(snapshot.data() as Omit<TestDoc, 'id'>) })
+      onChange(normalizeTestDoc(snapshot.id, snapshot.data() as Omit<TestDoc, 'id'>))
     },
     (error) => {
       console.error('Test subscription failed:', error)
@@ -46,10 +54,16 @@ export function subscribeToTest(token: string, onChange: (test: TestDoc | null) 
 
 export async function startTest(token: string): Promise<void> {
   const firestore = requireDb()
+  const test = await getTest(token)
   await updateDoc(doc(firestore, COLLECTION, token), {
     status: 'in-progress',
     startedAt: serverTimestamp(),
   })
+  if (test?.bundleId) {
+    await updateDoc(doc(firestore, 'assessmentBundles', test.bundleId), {
+      status: 'in-progress',
+    })
+  }
 }
 
 export async function saveAnswer(token: string, questionId: string, answer: string): Promise<void> {
@@ -63,7 +77,11 @@ export async function saveAnswers(token: string, answers: Record<string, string>
   await updateDoc(doc(firestore, COLLECTION, token), fields)
 }
 
-export async function submitTest(token: string): Promise<void> {
+export async function submitTest(token: string, testType: TestDoc['testType'] = 'technical'): Promise<void> {
+  if (testType === 'personality') {
+    await scorePersonalityTest(token)
+    return
+  }
   await scoreTest(token)
 }
 
